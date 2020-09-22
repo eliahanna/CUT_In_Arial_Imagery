@@ -3,6 +3,7 @@
 
 ## References
 * [Slide Show](https://docs.google.com/presentation/d/19oiKt0no4zbY6tm_8FUZn6wXmpXIvjLWI6HD_UWRF8M/edit?ts=5f60e106#slide=id.p)
+* [Meeting Notes](https://docs.google.com/document/d/1yrmghJ7MDKia_e4599bPVZS--dsykM7bCIAFgfwfaDw/edit?usp=sharing)
 * [Contrastive Learning for Unpaired Image-to-Image Translation](https://taesung.me/ContrastiveUnpairedTranslation/)
 * [CUT github repo](https://github.com/taesungp/contrastive-unpaired-translation)
 * [A Cycle GAN Approach for Heterogeneous Domain Adaptation in Land Use Classification](https://arxiv.org/abs/2004.11245v1)
