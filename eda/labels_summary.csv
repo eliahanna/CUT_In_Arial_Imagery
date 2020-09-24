@@ -1,0 +1,87 @@
+label,record_type,counts,Categories
+Agro-forestry areas,summer,2462,Agricultural areas
+Agro-forestry areas,winter,4319,Agricultural areas
+Airports,summer,96,Artificial Surfaces
+Airports,winter,72,Artificial Surfaces
+Annual crops associated with permanent crops,summer,740,Agricultural areas
+Annual crops associated with permanent crops,winter,1424,Agricultural areas
+Bare rock,summer,116,Forest
+Bare rock,winter,67,Forest
+"Beaches, dunes, sands",summer,213,Forest
+"Beaches, dunes, sands",winter,125,Forest
+Broad-leaved forest,summer,7695,Forest
+Broad-leaved forest,winter,16941,Forest
+Burnt areas,summer,59,Forest
+Burnt areas,winter,60,Forest
+Coastal lagoons,summer,139,Water bodies
+Coastal lagoons,winter,52,Water bodies
+Complex cultivation patterns,summer,5067,Agricultural areas
+Complex cultivation patterns,winter,11435,Agricultural areas
+Coniferous forest,summer,21988,Forest
+Coniferous forest,winter,4223,Forest
+Construction sites,summer,128,Artificial Surfaces
+Construction sites,winter,81,Artificial Surfaces
+Continuous urban fabric,summer,300,Artificial Surfaces
+Continuous urban fabric,winter,340,Artificial Surfaces
+Discontinuous urban fabric,summer,5238,Artificial Surfaces
+Discontinuous urban fabric,winter,6207,Artificial Surfaces
+Dump sites,summer,133,Artificial Surfaces
+Dump sites,winter,58,Artificial Surfaces
+Estuaries,summer,116,Water bodies
+Estuaries,winter,68,Water bodies
+Fruit trees and berry plantations,summer,213,Agricultural areas
+Fruit trees and berry plantations,winter,933,Agricultural areas
+Green urban areas,summer,181,Artificial Surfaces
+Green urban areas,winter,62,Artificial Surfaces
+Industrial or commercial units,summer,1111,Artificial Surfaces
+Industrial or commercial units,winter,1074,Artificial Surfaces
+Inland marshes,summer,447,Wetlands
+Inland marshes,winter,498,Wetlands
+Intertidal flats,summer,247,Wetlands
+Intertidal flats,winter,49,Wetlands
+"Land principally occupied by agriculture, with significant areas of natural vegetation",summer,10528,Agricultural areas
+"Land principally occupied by agriculture, with significant areas of natural vegetation",winter,11483,Agricultural areas
+Mineral extraction sites,summer,542,Artificial Surfaces
+Mineral extraction sites,winter,369,Artificial Surfaces
+Mixed forest,summer,21682,Forest
+Mixed forest,winter,7078,Forest
+Moors and heathland,summer,1367,Forest
+Moors and heathland,winter,335,Forest
+Natural grassland,summer,417,Forest
+Natural grassland,winter,1832,Forest
+Non-irrigated arable land,summer,14443,Agricultural areas
+Non-irrigated arable land,winter,15435,Agricultural areas
+Olive groves,summer,1671,Agricultural areas
+Olive groves,winter,2173,Agricultural areas
+Pastures,summer,14053,Agricultural areas
+Pastures,winter,4956,Agricultural areas
+Peatbogs,summer,3333,Wetlands
+Peatbogs,winter,2,Wetlands
+Permanently irrigated land,summer,1739,Agricultural areas
+Permanently irrigated land,winter,2267,Agricultural areas
+Port areas,summer,64,Artificial Surfaces
+Port areas,winter,23,Artificial Surfaces
+Rice fields,summer,531,Agricultural areas
+Rice fields,winter,598,Agricultural areas
+Road and rail networks and associated land,summer,518,Artificial Surfaces
+Road and rail networks and associated land,winter,219,Artificial Surfaces
+Salines,summer,10,Wetlands
+Salines,winter,46,Wetlands
+Salt marshes,summer,146,Wetlands
+Salt marshes,winter,136,Wetlands
+Sclerophyllous vegetation,summer,525,Forest
+Sclerophyllous vegetation,winter,2724,Forest
+Sea and ocean,summer,9054,Water bodies
+Sea and ocean,winter,2728,Water bodies
+Sparsely vegetated areas,summer,93,Forest
+Sparsely vegetated areas,winter,142,Forest
+Sport and leisure facilities,summer,779,Artificial Surfaces
+Sport and leisure facilities,winter,320,Artificial Surfaces
+Transitional woodland/shrub,summer,14486,Forest
+Transitional woodland/shrub,winter,12902,Forest
+Vineyards,summer,607,Agricultural areas
+Vineyards,winter,1168,Agricultural areas
+Water bodies,summer,6978,Water bodies
+Water bodies,winter,936,Water bodies
+Water courses,summer,729,Water bodies
+Water courses,winter,784,Water bodies
