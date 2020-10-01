@@ -31,7 +31,7 @@
 
 1. For training the CUT model we need to run ```python3 train.py --dataroot /data/capstone/preprocess/output/CUT/dataset/ --name landform_CUT --CUT_mode CUT```. The dataroot folder is the location for CUT input data. The model output is strored in results folder.
 
-2. Testing the CUT model ```python3 test.py --dataroot /data/capstone/preprocess/sampledata --name landform_CUT --CUT_mode CUT --phase train```.
+2. Testing the CUT model ```python3 test.py --dataroot /data/capstone/preprocess/output/CUT/predict/dataset/ --name landform_CUT --CUT_mode CUT --phase train```.
       
 
 
