@@ -33,5 +33,5 @@
 
 2. Testing the CUT model ```python3 test.py --dataroot /data/capstone/preprocess/output/CUT/predict/dataset/ --name landform_CUT --CUT_mode CUT --phase train```.
       
-
+Notes (add text later): cp results/landform_CUT/train_latest/images/fake_B/*.* /data/capstone/preprocess/output/model/CUTtrain  
 
