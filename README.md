@@ -35,3 +35,19 @@
       
 Notes (add text later): cp results/landform_CUT/train_latest/images/fake_B/*.* /data/capstone/preprocess/output/model/CUTtrain  
 
+python3 cut_to_model.py output
+
+python3 train_cls.py --train-path /data/capstone/preprocess/output/model/CUTtrain/train/ --val-path /data/capstone/preprocess/output/model/test --model resnet18  --batch-size 16 --num-classes 3 --device cuda --ckp-dir /data/capstone/nn/results/results_fake/
+
+python3 test_cls.py --val-path /data/capstone/preprocess/output/model/validate --ckp-dir /data/capstone/nn/results/results_fake/cls_epoch_89.pth --num-classes 3
+
+python3 train_cls.py --train-path /data/capstone/preprocess/output/model/train/ --val-path /data/capstone/preprocess/output/model/test --model resnet18  --batch-size 16 --num-classes 3 --device cuda --ckp-dir /data/capstone/nn/results/results_wofake/
+
+
+
+python3 test_cls.py --val-path /data/capstone/preprocess/output/model/validate --ckp-dir /data/capstone/nn/results/results_wofake/cls_epoch_89.pth --num-classes 3
+
+
+
+
+
