@@ -104,7 +104,7 @@ def main(args):
 
     # Step3. Instantiate the model
     model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
-    print(model.summary())
+    print("Model Summary: ", model.summary())
     model.to(device)
     if args.resume:
         model.load_state_dict(torch.load(args.resume, map_location=device))
