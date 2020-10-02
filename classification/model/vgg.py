@@ -85,8 +85,8 @@ cfgs = {
 def _vgg(arch, cfg, batch_norm, pretrained, progress, num_classes, in_channels, **kwargs):
     # if pretrained and in_channels != 3:
     #     raise ValueError('ImageNet pretrained models only support 3 input channels, but got {}'.format(in_channels))
-        
-    if pretrained:
+
+    if pretrained == True:
         kwargs['init_weights'] = False
         model = VGG(make_layers(cfgs[cfg], in_channels=3, batch_norm=batch_norm), **kwargs)
         state_dict = load_state_dict_from_url(model_urls[arch], progress=progress)
@@ -104,7 +104,7 @@ def _vgg(arch, cfg, batch_norm, pretrained, progress, num_classes, in_channels, 
             last = in_channels%3
             model.features[0].weight.data = torch.cat([conv0.weight for x in range(multi)], dim=1)
             model.features[0].weight.data = conv0.weight[:,:last,:,:]
-        model.classifier[6] = nn.Linear(model.classifier[6].in_features, 2)
+        model.classifier[6] = nn.Linear(model.classifier[6].in_features, num_classes)
     else:
         model = VGG(make_layers(cfgs[cfg], in_channels=in_channels, batch_norm=batch_norm), 
                     num_classes=num_classes, **kwargs)
