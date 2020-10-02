@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 import torchsat.transforms.transforms_cls as T_cls
-from .dataset.folder import ImageFolder
+from .dataset.folder import ImageMultiLabelDataset
 from .model.utils import get_model
 
 
