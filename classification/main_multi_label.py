@@ -15,11 +15,21 @@ from .model.utils import get_model
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer):
     model.train()
     for idx, (image, target) in enumerate(data_loader):
+        # Move tensors to the configured device
         image, target = image.to(device), target.to(device)
-        output = model(image)
-        loss = criterion(output, target)
+        # Clearing the last error gradient
         optimizer.zero_grad()
+        # Forward pass
+        output = model(image)
+        # TODO: Do I have to change the FC layer
+        #model = models.resnet50(pretrained=True) # pretrained = False bydefault
+        #num_ftrs = model.fc.in_features
+        #  model.fc = nn.Linear(num_ftrs, len(XRayTrain_dataset.all_classes)) # 15 output classes
+        # Calculate Loss
+        loss = criterion(output, target)
+        # Backward and optimize
         loss.backward()
+        # Updating parameters
         optimizer.step()
 
         if idx % print_freq == 0:
@@ -32,6 +42,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
     model.eval()
     loss = 0
     correct = 0
+    # In test phase, we don't need to compute gradients (for memory efficiency)
     with torch.no_grad():
         for idx, (image, target) in enumerate(data_loader):
             image = image.to(device, non_blocking=True)
@@ -40,6 +51,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
             loss += criterion(output, target).item()
 
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            #TODO : We have to fix this evaluation matrix
             correct += pred.eq(target.view_as(pred)).sum().item()
 
         loss /= len(data_loader.dataset)/data_loader.batch_size
@@ -50,7 +62,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
         writer.add_scalar('test/loss', loss, len(data_loader) * epoch)
         writer.add_scalar('test/accuracy', correct / len(data_loader.dataset), epoch)
 
-
+#load the data as image and multiLabel
 def load_data(traindir, valdir):
     train_transform = T_cls.Compose([
         T_cls.RandomHorizontalFlip(),
@@ -62,8 +74,8 @@ def load_data(traindir, valdir):
         T_cls.ToTensor(),
         T_cls.Normalize(),
     ])
-    dataset_train = ImageFolder(traindir, train_transform)
-    dataset_val = ImageFolder(valdir, val_transform)
+    dataset_train = ImageMultiLabelDataset(traindir, train_transform)
+    dataset_val = ImageMultiLabelDataset(valdir, val_transform)
 
     return dataset_train, dataset_val
 
@@ -71,33 +83,48 @@ def load_data(traindir, valdir):
 def main(args):
     torch.backends.cudnn.benchmark = True
 
+    #Step1. CPU or GPU
     device = torch.device('cuda' if args.device == 'cuda' else 'cpu')
+    # making empty lists to collect all the losses
+    losses_dict = {'epoch_train_loss': [], 'epoch_val_loss': [], 'total_train_loss_list': [], 'total_val_loss_list': []}
 
-    # dataset and dataloader
+    # Step2. load dataset and dataloader
     dataset_train, dataset_val = load_data(args.train_path, args.val_path)
     train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
 
-    # model
+    print('\n-----Initial Dataset Information-----')
+    print('num images in train_dataset   : {}'.format(len(dataset_train)))
+    print('num images in val_dataset     : {}'.format(len(dataset_val)))
+    print('-------------------------------------')
+
+    a,b = dataset_train[0]
+    print('\nwe are working with \nImages shape: {} and \nTarget shape: {}'.format( a.shape, b.shape))
+
+    # Step3. Instantiate the model
     model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
     model.to(device)
     if args.resume:
         model.load_state_dict(torch.load(args.resume, map_location=device))
 
-    # loss
-    criterion = nn.CrossEntropyLoss()
+    # Step4. Binary Croos Entropy loss for multi-label classification
+    #criterion = nn.BCELoss()
+    criterion = nn.BCEWithLogitsLoss().to(device)
 
-    # optim and lr scheduler
+    # Step5. Adam optimizer and lr scheduler
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    # lr_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1, eta_min=1e-8)
-    lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+    # Let's not do the learning rate scheduler now
+    #lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
     writer = SummaryWriter(args.ckp_dir)
     for epoch in range(args.epochs):
-        writer.add_scalar('train/learning_rate', lr_scheduler.get_lr()[0], epoch)
+        #writer.add_scalar('train/learning_rate', lr_scheduler.get_lr()[0], epoch)
+        # Step6. Train the epoch
         train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer)
-        lr_scheduler.step()
+        #lr_scheduler.step()
+        # Step7. Validate after each epoch
         evaluate(epoch, model, criterion, val_loader, device, writer)
+        # Step8. Save the model after each epoch
         torch.save(model.state_dict(), os.path.join(args.ckp_dir, "cls_epoch_{}.pth".format(epoch)))
 
 
