@@ -3,10 +3,12 @@ import os
 import os.path
 import sys
 from pathlib import Path
-
+from torch.utils.data import DataLoader
 import torch.utils.data as data
 
-from .utils import default_loader, image_loader
+from PIL import Image
+import numpy as np
+import pandas as pd
 
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', 'webp']
 
@@ -35,7 +37,49 @@ def is_image_file(filename):
     """
     return has_file_allowed_extension(filename, IMG_EXTENSIONS)
 
+def tifffile_loader(path):
+    # all the loader should be numpy ndarray [height, width, channels]
+    # int16: (-32768 to 32767)
+    import tifffile
+    img = tifffile.imread(path)
+    if img.dtype in [np.uint8, np.uint16, np.float]:
+        return img
+    else:
+        raise TypeError('tiff file only support np.uint8, np.uint16, np.float, but got {}'.format(img.dtype))
 
+
+def pil_loader(path):
+    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+    # all the loader should be numpy ndarray [height, width, channels]
+    with open(path, 'rb') as f:
+        img = Image.open(f)
+        return np.array(img)
+
+
+def image_loader(path):
+    if os.path.splitext(path)[1].lower() in ['.tif', '.tiff']:
+        return tifffile_loader(path)
+    else:
+        return pil_loader(path)
+
+
+def accimage_loader(path):
+    import accimage
+    try:
+        return accimage.Image(path)
+    except IOError:
+        # Potentially a decoding problem, fall back to PIL.Image
+        return pil_loader(path)
+
+
+def default_loader(path):
+    from torchvision import get_image_backend
+    if get_image_backend() == 'accimage':
+        return accimage_loader(path)
+    else:
+        return pil_loader(path)
+
+#This method will be used where using multi-class classification , meaning one image is mapped to one class only
 def make_dataset(dir, class_to_idx, extensions):
     images = []
     dir = os.path.expanduser(dir)
@@ -54,6 +98,7 @@ def make_dataset(dir, class_to_idx, extensions):
     return images
 
 
+#This method will be used where using multi-class classification , meaning one image is mapped to one class only
 class DatasetFolder(data.Dataset):
     """A generic data loader where the samples are arranged in this way: ::
 
@@ -189,118 +234,159 @@ class ImageFolder(DatasetFolder):
         self.imgs = self.samples
 
 
-class ChangeDetectionDataset(data.Dataset):
-    """A generic data loader where the images are arranged in this way: ::
-            .
-        ├── train
-        │   ├── pre
-        │   │   ├── train_1.png
-        │   │   ├── train_2.png
-        │   │   ├── ...
-        │   ├── post
-        │   │   ├── train_1.png
-        │   │   ├── train_2.png
-        │   │   ├── ...
-        │   └── label
-        │       ├── train_1.png
-        │       ├── train_2.png
-        │       ├── ...
-        └── val
-            ├── pre
-            │   ├── val_10.png
-            │   ├── val_11.png
-            │   ├── ...
-            ├── post
-            │   ├── val_10.png
-            │   ├── val_11.png
-            │   ├── ...
-            └── label
-                ├── val_10.png
-                ├── val_11.png
-                ├── ...
+# This will return a dataframe with the image full url and all the labels
+# This method will be used for multi-label classification
+def make_multi_dataset(dir, class_to_idx, extensions):
+    columns=(sorted(class_to_idx.keys()))
+    dictDataType={column:'Int64' for column in columns}
+    columns.insert(0,'Image')
+
+    df = pd.DataFrame(columns = columns )
+    df= df.astype(dictDataType)
+
+    dir = os.path.expanduser(dir)
+    for target in sorted(class_to_idx.keys()):
+        d = os.path.join(dir, target)
+        if not os.path.isdir(d):
+            continue
+
+        for root, _, fnames in sorted(os.walk(d)):
+            for fname in sorted(fnames):
+                if has_file_allowed_extension(fname, extensions):
+                    path = os.path.join(root, fname)
+                    if(df.Image.str.contains(fname).any()):
+                        print("Row alreaady exists ",df.Image.str.contains(fname).any())
+
+                        df.loc[df.Image.str.contains(fname),target] =1
+                    else:
+                        #print(df.loc[df.Image.str.contains(fname)])
+                        #print("numpy ",pd.np.where(df.Image.str.contains(fname)))
+                        df = df.append({columns[0] : path , target : 1} , ignore_index=True)
+
+    df=df.fillna(0)
+    print("Data frame ",df.iloc[:,1:])
+    return df
+
+# This dataloader is used for multi label classification
+class ImageMultiLabelDataset(data.Dataset):
+    """A generic data loader where the samples are arranged in this way: ::
+        One image can be under multiple class folders
+
+        root/class_x/xxx.ext
+        root/class_x/xxy.ext
+        root/class_x/xxz.ext
+
+        root/class_y/123.ext
+        root/class_y/xxy.ext
+        root/class_y/nsdf3.ext
+        root/class_y/asd932_.ext
+        root/class_x/xxz.ext
+
+        root/class_z/xxz.ext
 
     Args:
-        root (string): root dir of train or validate dataset.
-        extensions (tuple or list): extention of training image.
+        root (string): Root directory path.
+        loader (callable): A function to load a sample given its path.
+        extensions (list[string]): A list of allowed extensions.
+        classes (callable, optional): List of the class names.
+        class_to_idx (callable, optional): Dict with items (class_name, class_index).
+        transform (callable, optional): A function/transform that takes in
+            a sample and returns a transformed version.
+            E.g, ``transforms.RandomCrop`` for images.
+        target_transform (callable, optional): A function/transform that takes
+            in the target and transforms it.
+
+     Attributes:
+        classes (list): List of the class names.
+        class_to_idx (dict): Dict with items (class_name, class_index).
+        samples (list): List of (sample path, class_index) tuples
+        targets (list): The class_index value for each image in the dataset
     """
-    def __init__(self, root, extensions=('jpg'), transform=None):
+
+    def __init__(self, root, loader=default_loader, extensions=IMG_EXTENSIONS, classes=None, class_to_idx=None, transform=None, target_transform=None):
+        if not class_to_idx:
+            classes, class_to_idx = self._find_classes(root)
+
+        print("classes ",classes)
+        print("class_to_idx ",class_to_idx)
+
+        samples = make_multi_dataset(root, class_to_idx, extensions)
+        if len(samples) == 0:
+            raise(RuntimeError("Found 0 files in subfolders of: " + root + "\n"
+                                                                           "Supported extensions are: " + ",".join(extensions)))
+
         self.root = root
+        self.loader = loader
         self.extensions = extensions
+
+        self.classes = classes
+        self.class_to_idx = class_to_idx
+        self.samples = samples
+        self.targets = [s[1] for s in samples]
+
         self.transform = transform
+        self.target_transform = target_transform
 
-        self.samples = self._generate_data()
+    def _find_classes(self, dir):
+        """
+        Finds the class folders in a dataset.
+
+        Args:
+            dir (string): Root directory path.
+
+        Returns:
+            tuple: (classes, class_to_idx) where classes are relative to (dir), and class_to_idx is a dictionary.
+
+        Ensures:
+            No class is a subdirectory of another.
+        """
+        if sys.version_info >= (3, 5):
+            # Faster and available in Python 3.5 and above
+            classes = [d.name for d in os.scandir(dir) if d.is_dir()]
+        else:
+            classes = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+        classes.sort()
+        class_to_idx = {classes[i]: i for i in range(len(classes))}
+        return classes, class_to_idx
 
     def __getitem__(self, index):
-        pre_img, post_img, label_img = [image_loader(x) for x in self.samples[index]]
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        row = self.samples.iloc[index, :]
+        path=row.Image
+        target = row[1:].values
+        target = target.astype('double')
+        sample = self.loader(path)
         if self.transform is not None:
-            pre_img, post_img, label_img = self.transform(pre_img, post_img, label_img)
-        return pre_img, post_img, label_img
+            sample = self.transform(sample)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
 
-    def _generate_data(self):
-        images = []
-        for root, _, fnames in sorted(os.walk(os.path.join(self.root, 'pre'))):
-            for fname in sorted(fnames):
-                if has_file_allowed_extension(fname, self.extensions):
-                    pre_path = os.path.join(root, fname)
-                    post_path = pre_path.replace('pre', 'post')
-                    label_path = str(Path(pre_path.replace('pre', 'label')).with_suffix('.png'))
-                    images.append((pre_path, post_path, label_path))
-
-        return images
+        return sample, target
 
     def __len__(self):
         return len(self.samples)
 
+    def __repr__(self):
+        fmt_str = 'Dataset ' + self.__class__.__name__ + '\n'
+        fmt_str += '    Number of datapoints: {}\n'.format(self.__len__())
+        fmt_str += '    Root Location: {}\n'.format(self.root)
+        tmp = '    Transforms (if any): '
+        fmt_str += '{0}{1}\n'.format(tmp, self.transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
+        tmp = '    Target Transforms (if any): '
+        fmt_str += '{0}{1}'.format(tmp, self.target_transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
+        return fmt_str
 
-class SegmentationDataset(object):
-    """A generic data loader where the images are arranged in this way: ::
-        .
-        ├── train
-        │   ├── image
-        │   │   ├── train_1.png
-        │   │   ├── train_2.png
-        │   │   ├── ...
-        │   └── label
-        │       ├── train_1.png
-        │       ├── train_2.png
-        │       ├── ...
-        └── val
-            ├── image
-            │   ├── val_10.png
-            │   ├── val_11.png
-            │   ├── ...
-            └── label
-                ├── val_10.png
-                ├── val_11.png
-                ├── ...
 
-    Args:
-        root (string): root dir of train or validate dataset.
-        extensions (tuple or list): extention of training image.
-    """
-    def __init__(self, root, extentions=('jpg'), transforms=None):
-        self.root = root
-        self.extensions = extentions
-        self.transforms = transforms
-
-        self.samples = self._generate_data()
-        pass
-    def __getitem__(self, index):
-        image_img, label_img = [image_loader(x) for x in self.samples[index]]
-        if self.transforms is not None:
-            image_img, label_img = self.transforms(image_img, label_img)
-        return image_img, label_img
-
-    def _generate_data(self):
-        images = []
-        for root, _, fnames in sorted(os.walk(os.path.join(self.root, 'image'))):
-            for fname in sorted(fnames):
-                if has_file_allowed_extension(fname, self.extensions):
-                    image_path = os.path.join(root, fname)
-                    label_path = Path(image_path.replace('image', 'label')).with_suffix('.png')
-                    images.append((image_path, label_path))
-
-        return images
-
-    def __len__(self):
-        return len(self.samples)
+if __name__ == "__main__":
+    traindir='/Users/adas1/Aditi/personal/school/210/dataloader'
+    dataset_train = ImageMultiLabelDataset(traindir)
+    dataloader = DataLoader(dataset_train, batch_size=2, shuffle=True, num_workers=2)
+    for i, batch in enumerate(dataloader):
+        print(i, batch)
+        break
