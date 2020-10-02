@@ -21,10 +21,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
         optimizer.zero_grad()
         # Forward pass
         output = model(image)
-        # TODO: Do I have to change the FC layer
-        #model = models.resnet50(pretrained=True) # pretrained = False bydefault
-        #num_ftrs = model.fc.in_features
-        #  model.fc = nn.Linear(num_ftrs, len(XRayTrain_dataset.all_classes)) # 15 output classes
+
         # Calculate Loss
         loss = criterion(output, target)
         # Backward and optimize
@@ -109,7 +106,7 @@ def main(args):
         model.load_state_dict(torch.load(args.resume, map_location=device))
 
     # Step4. Binary Croos Entropy loss for multi-label classification
-    #criterion = nn.BCELoss()
+
     criterion = nn.BCEWithLogitsLoss().to(device)
 
     # Step5. Adam optimizer and lr scheduler
