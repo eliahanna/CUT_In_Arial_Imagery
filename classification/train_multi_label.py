@@ -7,7 +7,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import torchsat.transforms.transforms_cls as T_cls
+from torchvision import transforms
 from .dataset.folder import ImageMultiLabelDataset
 from .model.utils import get_model
 
@@ -64,15 +64,15 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
 
 #load the data as image and multiLabel
 def load_data(traindir, valdir):
-    train_transform = T_cls.Compose([
-        T_cls.RandomHorizontalFlip(),
-        T_cls.RandomVerticalFlip(),
-        T_cls.ToTensor(),
-        T_cls.Normalize(),
+    train_transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    val_transform = T_cls.Compose([
-        T_cls.ToTensor(),
-        T_cls.Normalize(),
+    val_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(),
     ])
     dataset_train = ImageMultiLabelDataset(traindir, train_transform)
     dataset_val = ImageMultiLabelDataset(valdir, val_transform)
@@ -86,6 +86,7 @@ def main(args):
     #Step1. CPU or GPU
     device = torch.device('cuda' if args.device == 'cuda' else 'cpu')
     # making empty lists to collect all the losses
+    #TODO : populate this dictionay
     losses_dict = {'epoch_train_loss': [], 'epoch_val_loss': [], 'total_train_loss_list': [], 'total_val_loss_list': []}
 
     # Step2. load dataset and dataloader

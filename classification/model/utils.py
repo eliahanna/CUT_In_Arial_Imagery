@@ -1,6 +1,6 @@
 
 from .resnet import resnet18, resnet34, resnet50, resnet101, resnet152, resnext50_32x4d, resnext101_32x8d, wide_resnet50_2, wide_resnet101_2
-
+from .vgg import vgg11, vgg11_bn, vgg13, vgg13_bn, vgg16, vgg16_bn, vgg19_bn, vgg19
 
 __all__ = ["get_model"]
 
@@ -13,7 +13,15 @@ models = {
     'resnext50_32x4d': resnext50_32x4d,
     'resnext101_32x8d': resnext101_32x8d,
     'wide_resnet50_2': wide_resnet50_2,
-    'wide_resnet101_2': wide_resnet101_2
+    'wide_resnet101_2': wide_resnet101_2,
+    'vgg11': vgg11,
+    'vgg11_bn': vgg11_bn,
+    'vgg13': vgg13,
+    'vgg13_bn': vgg13_bn,
+    'vgg16': vgg16,
+    'vgg16_bn': vgg16_bn,
+    'vgg19_bn': vgg19_bn,
+    'vgg19': vgg19
 }
 
 
