@@ -8,8 +8,8 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from torchvision import transforms
-from .dataset.folder import ImageMultiLabelDataset
-from .model.utils import get_model
+from dataset.folder import ImageMultiLabelDataset
+from model.utils import get_model
 
 
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer):
@@ -21,7 +21,6 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
         optimizer.zero_grad()
         # Forward pass
         output = model(image)
-
         # Calculate Loss
         loss = criterion(output, target)
         # Backward and optimize
@@ -49,30 +48,34 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
 
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             #TODO : We have to fix this evaluation matrix
-            correct += pred.eq(target.view_as(pred)).sum().item()
+            #correct += pred.eq(target.view_as(pred)).sum().item()
 
         loss /= len(data_loader.dataset)/data_loader.batch_size
 
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-            loss, correct, len(data_loader.dataset),
-            100. * correct / len(data_loader.dataset)))
+        #print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        #    loss, correct, len(data_loader.dataset),
+        #    100. * correct / len(data_loader.dataset)))
+        print('\nTest set: Average loss: {:.4f}, Accuracy:  TBD)\n'.format(
+            loss,
+            ))
         writer.add_scalar('test/loss', loss, len(data_loader) * epoch)
         writer.add_scalar('test/accuracy', correct / len(data_loader.dataset), epoch)
 
 #load the data as image and multiLabel
 def load_data(traindir, valdir):
+    #TODO: Find out the correct transformation
     train_transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
+ #       transforms.RandomHorizontalFlip(),
+#        transforms.RandomVerticalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     val_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    dataset_train = ImageMultiLabelDataset(traindir, train_transform)
-    dataset_val = ImageMultiLabelDataset(valdir, val_transform)
+    dataset_train = ImageMultiLabelDataset(root=traindir, transform=train_transform)
+    dataset_val = ImageMultiLabelDataset(root=valdir, transform=val_transform)
 
     return dataset_train, dataset_val
 
@@ -97,10 +100,11 @@ def main(args):
     print('-------------------------------------')
 
     a,b = dataset_train[0]
-    print('\nwe are working with \nImages shape: {} and \nTarget shape: {}'.format( a.shape, b.shape))
+    print('\nwe are working with \nImages shape: {} and \nTarget shape: {}'.format( a.shape, b))
 
     # Step3. Instantiate the model
     model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
+    print(model.summary())
     model.to(device)
     if args.resume:
         model.load_state_dict(torch.load(args.resume, map_location=device))
