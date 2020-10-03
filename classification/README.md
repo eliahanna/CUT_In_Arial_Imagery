@@ -10,7 +10,7 @@ This model is currently trained with BigEarthNet dataset that has multiple label
 ## How to run the Classification Model
 The main python script main_multi_label.py which takes in the following parameter:
 
-  * --train-path TRAIN_PATH train dataset path
+  *--train-path TRAIN_PATH train dataset path
   
   *--val-path VAL_PATH]  validation dataset path
   
