@@ -10,38 +10,47 @@ This model is currently trained with BigEarthNet dataset that has multiple label
 ## How to run the Classification Model
 The main python script main_multi_label.py which takes in the following parameter:
 
-  *--train-path TRAIN_PATH train dataset path
+  *--train-path TRAIN_PATH -> training dataset path
   
-  *--val-path VAL_PATH]  validation dataset path
+  *--val-path VAL_PATH  ->validation dataset path
   
-  *--model The classification model you are using, default to VGG16
+  *--model -> The classification model you are using, default is VGG16
   
-  *--pretrained PRETRAINED If you want use the ImageNet pretrained model or not, default=True
+  *--pretrained PRETRAINED -> You want use the ImageNet pretrained model or not, default=True
   
-  *--num-classes NUM_CLASSES Number of labels you are predicting
+  *--num-classes NUM_CLASSES -> Number of labels you are predicting
   
-  *--resume resume Path to the latest checkpoint (default: none)
+  *--resume resume -> Path to the latest checkpoint during training (default: none)
   
-  *--in-channels IN_CHANNELS Input image channel
+  *--in-channels IN_CHANNELS -> Input image channel
   
-  *--device DEVICE the device platform for train, cuda or cpu. default = cpu
+  *--device DEVICE -> the device platform for train, cuda or cpu. default = cpu
   
-  *--b BATCH_SIZE training batch size , default=16
+  *--b BATCH_SIZE -> training batch size , default=16
   
-  *--epochs EPOCHS How many epoch to train , default=90
+  *--epochs EPOCHS -> How many epoch to train , default=90
   
-  *--lr LR initial learning rate , default=0.1
+  *--lr LR -> initial learning rate , default=0.1
   
-  *--print-freq PRINT_FREQ] 
+  *--print-freq PRINT_FREQ
   
-  *--drop Dropout] 
+  *--drop Dropout
   
-  *--test-path TEST_PATH
+  *--test-path TEST_PATH -> test dataset path
   
-  *--test-model path to latest checkpoint to run test on (default: none)
+  *--test-model -> path to latest checkpoint model to run test on (default: none)
   
-  *--t TEST Whether you are running test or not , default=False
+  *--t TEST -> Whether you are running test or not , default=False
 
 ### Example to run Training
+python3 main_multi_label.py --train-path ../preprocess/output/model/train \
+                 --val-path ../preprocess/output/model/validate \
+                 --model vgg16 \
+                 --batch-size 32 \
+                 --num-classes 11 \
+                 --ckp-dir result	\
+                 --epochs 2	\
+                 --device cuda
+                 
 
 ### Example to run Test
