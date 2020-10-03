@@ -255,8 +255,7 @@ def make_multi_dataset(dir, class_to_idx, extensions):
                 if has_file_allowed_extension(fname, extensions):
                     path = os.path.join(root, fname)
                     if(df.Image.str.contains(fname).any()):
-                        print("Row alreaady exists ",df.Image.str.contains(fname).any())
-
+                        #print("Row alreaady exists ",df.Image.str.contains(fname).any())
                         df.loc[df.Image.str.contains(fname),target] =1
                     else:
                         #print(df.loc[df.Image.str.contains(fname)])
@@ -264,7 +263,7 @@ def make_multi_dataset(dir, class_to_idx, extensions):
                         df = df.append({columns[0] : path , target : 1} , ignore_index=True)
 
     df=df.fillna(0)
-    print("Data frame ",df.iloc[:,1:])
+    #print("Data frame ",df.iloc[100:150,1:])
     return df
 
 # This dataloader is used for multi label classification
@@ -322,7 +321,8 @@ class ImageMultiLabelDataset(data.Dataset):
         self.classes = classes
         self.class_to_idx = class_to_idx
         self.samples = samples
-        self.targets = [s[1] for s in samples]
+        print("The shape of the dataset: ",samples.shape)
+        #self.targets = [s[1] for s in samples]
 
         self.transform = transform
         self.target_transform = target_transform
