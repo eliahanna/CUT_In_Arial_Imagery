@@ -54,3 +54,11 @@ python3 main_multi_label.py --train-path ../preprocess/output/model/train \
                  
 
 ### Example to run Test
+python3 main_multi_label.py --test True --test-path ../preprocess/output/model/test \
+                 --test-model result/cls_epoch_1.pth \
+                 --model vgg16 \
+                 --batch-size 32 \
+                 --num-classes 11 \
+                 --ckp-dir result  \
+                 --epochs 2 \
+                 --device cuda
