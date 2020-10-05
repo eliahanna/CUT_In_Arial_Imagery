@@ -122,15 +122,14 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
             f1+=f1_score(target, pred)
 
         loss /= len(data_loader.dataset)
-
         print('\nTest set: Average loss: {:.4f}, Accuracy: {}, Precision: {} , Recall: {} , F1 score: {} \n'.format(
             loss, accuracy_score,precision,recall,f1))
 
-        writer.add_scalar('test/loss', loss, len(data_loader) * epoch)
-        writer.add_scalar('test/accuracy', accuracy_score)
-        writer.add_scalar('test/Precision', precision )
-        writer.add_scalar('test/Recall', recall)
-        writer.add_scalar('test/F1 score', f1 )
+        writer.add_scalar('test/loss', loss,  epoch)
+        writer.add_scalar('test/accuracy', accuracy_score, epoch)
+        writer.add_scalar('test/Precision', precision, epoch )
+        writer.add_scalar('test/Recall', recall,epoch)
+        writer.add_scalar('test/F1 score', f1 ,epoch)
 
 #load the data as image and multiLabel
 def load_data(traindir, valdir):
@@ -207,6 +206,7 @@ def main(args):
             evaluate(epoch, model, criterion, val_loader, device, writer)
             # Step8. Save the model after each epoch
             torch.save(model.state_dict(), os.path.join(args.ckp_dir, "cls_epoch_{}.pth".format(epoch)))
+        writer.close()
     else:
         print("Testing Flow")
         writer = SummaryWriter(args.ckp_dir)
@@ -226,6 +226,7 @@ def main(args):
         criterion = nn.BCEWithLogitsLoss().to(device)
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
         evaluate(1, model, criterion, test_loader, device, writer)
+        writer.close()
 
 
     time_elapsed = time.time() - script_start_time
@@ -251,7 +252,7 @@ def parse_args():
     parser.add_argument('--epochs', default=90, type=int, help='train epochs')
     parser.add_argument('--lr', default=0.1, type=float, help='initial learning rate')
 
-    parser.add_argument('--print-freq', default=10, type=int, help='print frequency')
+    parser.add_argument('--print-freq', default=20, type=int, help='print frequency')
     parser.add_argument('--ckp-dir', default='checkpoint', help='path to save checkpoint')
    	# Additional arguments
     parser.add_argument('--drop', '--dropout', default=0, help='Dropout ratio')
