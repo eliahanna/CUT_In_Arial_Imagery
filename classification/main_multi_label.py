@@ -119,7 +119,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
             accuracy_score +=hamming_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
             precision +=precision_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
             recall +=recall_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
-            f1+=f1_score(target, pred)
+            f1+=f1_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
 
         loss /= len(data_loader.dataset)
         print('\nTest set: Average loss: {:.4f}, Accuracy: {}, Precision: {} , Recall: {} , F1 score: {} \n'.format(
