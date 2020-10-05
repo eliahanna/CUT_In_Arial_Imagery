@@ -6,16 +6,73 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
+import numpy as np
 from torchvision import transforms
 from dataset.folder import ImageMultiLabelDataset
 from model.utils import get_model
+from torchsummary import summary
 
 # define a function to count the total number of trainable parameters
 def count_parameters(model):
     num_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return num_parameters/1e6 # in terms of millions
 
+def recall_score(y_true, y_pred):
+    rec_list = []
+    for i in range(y_true.shape[0]):
+        set_true = set( np.where(y_true[i])[0] )
+
+        set_pred = set( np.where(y_pred[i])[0] )
+        tmp_a = None
+        if len(set_true) == 0 and len(set_pred) == 0:
+            tmp_a = 1
+        else:
+            tmp_a = len(set_true.intersection(set_pred))/ \
+                    float( len(set_true) )
+        #print('tmp_a: {0}'.format(tmp_a))
+        rec_list.append(tmp_a)
+    return np.mean(rec_list)
+
+def precision_score(y_true, y_pred):
+    prec_list = []
+
+    for i in range(y_true.shape[0]):
+        set_true = set( np.where(y_true[i])[0] )
+        set_pred = set( np.where(y_pred[i])[0] )
+        tmp_a = None
+        if len(set_true) == 0 and len(set_pred) == 0:
+            tmp_a = 1
+        elif len(set_pred) == 0:
+            tmp_a = 0
+        else:
+            tmp_a = len(set_true.intersection(set_pred))/ \
+                    float( len(set_pred) )
+        prec_list.append(tmp_a)
+    return np.mean(prec_list)
+
+def f1_score(y_true, y_pred):
+    p = precision_score(y_true, y_pred)
+    r = recall_score(y_true, y_pred)
+    if p + r == 0:
+        return 0
+    else:
+        return 2 * (p * r) / (p + r)
+
+def hamming_score(y_true, y_pred, normalize=True, sample_weight=None):
+    acc_list = []
+    for i in range(y_true.shape[0]):
+        set_true = set( np.where(y_true[i])[0] )
+
+        set_pred = set( np.where(y_pred[i])[0] )
+        tmp_a = None
+        if len(set_true) == 0 and len(set_pred) == 0:
+            tmp_a = 1
+        else:
+            tmp_a = len(set_true.intersection(set_pred))/ \
+                    float( len(set_true.union(set_pred)) )
+        #print('tmp_a: {0}'.format(tmp_a))
+        acc_list.append(tmp_a)
+    return np.mean(acc_list)
 
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer):
     model.train()
@@ -42,7 +99,10 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
 def evaluate(epoch, model, criterion, data_loader, device, writer):
     model.eval()
     loss = 0
-    correct = 0
+    accuracy_score = 0
+    precision = 0
+    recall = 0
+    f1 =0
     # In test phase, we don't need to compute gradients (for memory efficiency)
     with torch.no_grad():
         for idx, (image, target) in enumerate(data_loader):
@@ -51,20 +111,26 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
             output = model(image)
             loss += criterion(output, target).item()
 
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            #TODO : We have to fix this evaluation matrix
+            #pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            pred = (output > .5).int()
+
             #correct += pred.eq(target.view_as(pred)).sum().item()
+            #to(torch.device("cpu")).numpy()
+            accuracy_score +=hamming_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
+            precision +=precision_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
+            recall +=recall_score(target, pred)
+            f1+=f1_score(target, pred)
 
-        loss /= len(data_loader.dataset)/data_loader.batch_size
+        loss /= len(data_loader.dataset)
 
-        #print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        #    loss, correct, len(data_loader.dataset),
-        #    100. * correct / len(data_loader.dataset)))
-        print('\nTest set: Average loss: {:.4f}, Accuracy:  TBD)\n'.format(
-            loss,
-            ))
+        print('\nTest set: Average loss: {:.4f}, Accuracy: {}, Precision: {} , Recall: {} , F1 score: {} \n'.format(
+            loss, accuracy_score,precision,recall,f1))
+
         writer.add_scalar('test/loss', loss, len(data_loader) * epoch)
-        writer.add_scalar('test/accuracy', correct / len(data_loader.dataset), epoch)
+        writer.add_scalar('test/accuracy', accuracy_score)
+        writer.add_scalar('test/Precision', precision )
+        writer.add_scalar('test/Recall', recall)
+        writer.add_scalar('test/F1 score', f1 )
 
 #load the data as image and multiLabel
 def load_data(traindir, valdir):
@@ -115,12 +181,12 @@ def main(args):
 
         # Step3. Instantiate the model
         model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
-        print("Model Summary: ", model)
+        print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
         model.to(device)
         if args.resume:
             model.load_state_dict(torch.load(args.resume, map_location=device))
 
-        print('\nwe have {} Million trainable parameters here in the {} model'.format(count_parameters(model), model.__class__.__name__))
+        #print('\nwe have {} Million trainable parameters here in the {} model'.format(count_parameters(model), model.__class__.__name__))
 
         # Step4. Binary Croos Entropy loss for multi-label classification
 
@@ -162,10 +228,10 @@ def main(args):
         evaluate(1, model, criterion, test_loader, device, writer)
 
 
-    script_time = time.time() - script_start_time
-    m, s = divmod(script_time, 60)
+    time_elapsed = time.time() - script_start_time
+    m, s = divmod(time_elapsed, 60)
     h, m = divmod(m, 60)
-    print('{} h {}m is taken by the script!'.format(int(h), int(m)))
+    print('{} h {}m is taken by the script to complete!'.format(int(h), int(m)))
 
 
 def parse_args():
