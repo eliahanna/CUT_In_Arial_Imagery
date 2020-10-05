@@ -10,7 +10,7 @@ import numpy as np
 from torchvision import transforms
 from dataset.folder import ImageMultiLabelDataset
 from model.utils import get_model
-from torchsummary import summary
+#from torchsummary import summary
 
 # define a function to count the total number of trainable parameters
 def count_parameters(model):
@@ -180,12 +180,12 @@ def main(args):
 
         # Step3. Instantiate the model
         model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
-        print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
+        #print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
         model.to(device)
         if args.resume:
             model.load_state_dict(torch.load(args.resume, map_location=device))
 
-        #print('\nwe have {} Million trainable parameters here in the {} model'.format(count_parameters(model), model.__class__.__name__))
+        print('\nwe have {} Million trainable parameters here in the {} model'.format(count_parameters(model), model.__class__.__name__))
 
         # Step4. Binary Croos Entropy loss for multi-label classification
 
