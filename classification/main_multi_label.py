@@ -132,19 +132,34 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
         writer.add_scalar('test/F1 score', f1 ,epoch)
 
 #load the data as image and multiLabel
-def load_data(traindir, valdir):
+def load_data(traindir, valdir,augmentation=False):
     #TODO: Find out the correct transformation
-    train_transform = transforms.Compose([
- #       transforms.RandomHorizontalFlip(),
-#        transforms.RandomVerticalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
+    transformation='none'
+    train_transform = {
+        'none' : transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ]),
+        'augment' : transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.RandomVerticalFlip(0.5),
+            transforms.RandomGrayscale(0.2),
+            transforms.RandomRotation(40),
+            transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0, hue=0),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+    }
     val_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    dataset_train = ImageMultiLabelDataset(root=traindir, transform=train_transform)
+    if augmentation:
+        transformation='augment'
+
+    print("Train time transformation : ",transformation)
+    dataset_train = ImageMultiLabelDataset(root=traindir, transform=train_transform[transformation])
     dataset_val = ImageMultiLabelDataset(root=valdir, transform=val_transform)
 
     return dataset_train, dataset_val
@@ -166,7 +181,7 @@ def main(args):
         losses_dict = {'epoch_train_loss': [], 'epoch_val_loss': [], 'total_train_loss_list': [], 'total_val_loss_list': []}
 
         # Step2. load dataset and dataloader
-        dataset_train, dataset_val = load_data(args.train_path, args.val_path)
+        dataset_train, dataset_val = load_data(args.train_path, args.val_path,args.augmentation)
         train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
         val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
 
@@ -259,6 +274,8 @@ def parse_args():
     parser.add_argument('--test-path', help='test dataset path')
     parser.add_argument('--test-model',default='', help='path to latest checkpoint to run test on (default: none)')
     parser.add_argument('-t','--test', default=False, help = 'Set to true when running test')
+    parser.add_argument('--augmentation', default=False, help = 'Set to true if you want to do data augmentation')
+
 
     args = parser.parse_args()
     return args
