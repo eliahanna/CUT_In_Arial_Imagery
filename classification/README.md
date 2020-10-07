@@ -41,6 +41,8 @@ The main python script main_multi_label.py which takes in the following paramete
   *--test-model -> path to latest checkpoint model to run test on (default: none)
   
   *--t TEST -> Whether you are running test or not , default=False
+  
+  *--augmentation -> the default is false, turn it to true if you want to use data augmentation
 
 ### Example to run Training
 python3 main_multi_label.py --train-path ../preprocess/output/model/train \
@@ -50,7 +52,8 @@ python3 main_multi_label.py --train-path ../preprocess/output/model/train \
                  --num-classes 11 \
                  --ckp-dir result	\
                  --epochs 2	\
-                 --device cuda
+                 --device cuda \
+                 --augmentation True
                  
 
 ### Example to run Test
