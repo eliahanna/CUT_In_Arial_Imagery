@@ -15,7 +15,7 @@
 
 ## System Access
 * Access to IBM Cloud ```ssh -i id_rsa root@52.117.105.190```
-* Access to AWS Instance ```ssh -i cut-aws.pem ubuntu@54.191.229.57```
+* Access to AWS Instance ```ssh -i cut-aws.pem ubuntu@18.236.82.51```
 
 ## Preprocessing
 
