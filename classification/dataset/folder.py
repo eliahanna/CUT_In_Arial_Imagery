@@ -259,7 +259,7 @@ def make_multi_dataset(dir, class_to_idx, extensions):
                         df.loc[df.Image.str.contains(fname),target] =1
                     else:
                         #print(df.loc[df.Image.str.contains(fname)])
-                        #print("numpy ",pd.np.where(df.Image.str.contains(fname)))
+                        #print("name of the image ",fname)
                         df = df.append({columns[0] : path , target : 1} , ignore_index=True)
 
     df=df.fillna(0)
@@ -383,10 +383,46 @@ class ImageMultiLabelDataset(data.Dataset):
         return fmt_str
 
 
+
 if __name__ == "__main__":
-    traindir='/Users/adas1/Aditi/personal/school/210/dataloader'
-    dataset_train = ImageMultiLabelDataset(traindir)
-    dataloader = DataLoader(dataset_train, batch_size=2, shuffle=True, num_workers=2)
-    for i, batch in enumerate(dataloader):
-        print(i, batch)
+    import matplotlib.pyplot as plt
+    import torchvision
+    import torchvision.transforms as transforms
+    traindir='/Users/adas1/Aditi/personal/school/210/dataloader/model'
+
+    train_transform = {
+        'none' : transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.ToTensor(),
+  #         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ]),
+        'augment' : transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.RandomVerticalFlip(0.5),
+            transforms.RandomGrayscale(0.5),
+            transforms.RandomRotation(40),
+            #transforms.Grayscale(num_output_channels=3),
+            transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.1, hue=0),
+            transforms.ToTensor(),
+            #          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+    }
+    dataset_train = ImageMultiLabelDataset(root=traindir,transform=train_transform["augment"])
+    batch_size = 1
+    dataloader = DataLoader(dataset_train, batch_size, shuffle=True, num_workers=0)
+    fig, axs = plt.subplots(1, batch_size, figsize=(3,3))
+    print("length of the dataloader ",len(dataloader.dataset))
+    #dataloader output 4 dimensional tensor - [batch, channel, height, width]. Matplotlib and other image processing libraries often requires [height, width, channel].
+    for j, (image, target) in enumerate(dataloader):
+        for i in range(batch_size):
+            print("i ",i ,image[i].shape)
+            img =image[i] #/ 2 + 0.5
+            #your transpose should convert a now [channel, height, width] tensor to a [height, width, channel] one. To do this, use np.transpose(image.numpy(), (1, 2, 0))
+            img=np.transpose(img.numpy(), (1, 2, 0))
+            #print("Values ", target[i].numpy(), image[i].numpy().shape)
+            axs.imshow(img)
+
         break
+    plt.show()
+
