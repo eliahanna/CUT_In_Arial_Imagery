@@ -11,6 +11,7 @@ from torchvision import transforms
 from dataset.folder import ImageMultiLabelDataset
 from model.utils import get_model
 #from torchsummary import summary
+import torchvision.models as models
 
 # define a function to count the total number of trainable parameters
 def count_parameters(model):
@@ -114,14 +115,19 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
             #pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             pred = (output > .5).int()
 
-            #correct += pred.eq(target.view_as(pred)).sum().item()
-            #to(torch.device("cpu")).numpy()
-            accuracy_score +=hamming_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
-            precision +=precision_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
-            recall +=recall_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
-            f1+=f1_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
+            accuracy_score = accuracy_score + hamming_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
+            precision = precision + precision_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
+            recall = recall + recall_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
+            f1= f1 + f1_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
 
-        loss /= len(data_loader.dataset)
+        #print("Number of batches : ",len(data_loader) , " and also : ",data_loader.batch_size)
+        loss /= len(data_loader.dataset)/data_loader.batch_size
+
+        #print(" Final Accuracy score : ",accuracy_score)
+        accuracy_score /= len(data_loader)
+        precision /= len(data_loader)
+        recall /= len(data_loader)
+        f1 /= len(data_loader)
         print('\nTest set: Average loss: {:.4f}, Accuracy: {}, Precision: {} , Recall: {} , F1 score: {} \n'.format(
             loss, accuracy_score,precision,recall,f1))
 
@@ -194,7 +200,15 @@ def main(args):
         print('\nwe are working with \nImages shape: {} and \nTarget shape: {}'.format( a.shape, b))
 
         # Step3. Instantiate the model
-        model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
+        #model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
+        #TODO: fix the model
+        model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
+        # change the last linear layer
+        num_features = model.classifier[6].in_features
+        features = list(model.classifier.children())[:-1] # Remove last layer
+        features.extend([nn.Linear(num_features, args.num_classes)]) # Add our layer with 4 outputs
+        model.classifier = nn.Sequential(*features) # Replace the model classifier
+
         #print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
         model.to(device)
         if args.resume:
