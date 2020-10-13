@@ -12,6 +12,8 @@ from dataset.folder import ImageMultiLabelDataset
 from model.utils import get_model
 #from torchsummary import summary
 import torchvision.models as models
+import pandas as pd
+from torch.utils.data import WeightedRandomSampler
 
 # define a function to count the total number of trainable parameters
 def count_parameters(model):
@@ -77,15 +79,20 @@ def hamming_score(y_true, y_pred, normalize=True, sample_weight=None):
 
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer):
     model.train()
-    for idx, (image, target) in enumerate(data_loader):
+    epoch_loss = 0
+    for idx, (image, target,name) in enumerate(data_loader):
+        #print("Target ",target)
         # Move tensors to the configured device
         image, target = image.to(device), target.to(device)
         # Clearing the last error gradient
         optimizer.zero_grad()
         # Forward pass
         output = model(image)
+        #pred_opt = torch.sigmoid(output)
+        #print("pred_opt ",pred_opt)
         # Calculate Loss
         loss = criterion(output, target)
+        #epoch_loss = epoch_loss + loss.item()
         # Backward and optimize
         loss.backward()
         # Updating parameters
@@ -94,8 +101,10 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
         if idx % print_freq == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, idx * len(image), len(data_loader.dataset), 100. * idx / len(data_loader), loss.item()))
-            writer.add_scalar('train/loss', loss.item(), len(data_loader) * epoch + idx)
+            writer.add_scalar('Train/loss', loss.item(), len(data_loader) * epoch + idx)
 
+    #epoch_loss /= len(data_loader.dataset)/data_loader.batch_size
+    #writer.add_scalar('Train/epoch loss', epoch_loss, epoch)
 
 def evaluate(epoch, model, criterion, data_loader, device, writer):
     model.eval()
@@ -104,22 +113,37 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
     precision = 0
     recall = 0
     f1 =0
+    checkDf = pd.DataFrame(columns = ['Image', 'Actual','Prediction','Matching'])
     # In test phase, we don't need to compute gradients (for memory efficiency)
     with torch.no_grad():
-        for idx, (image, target) in enumerate(data_loader):
+        for idx, (image, target,name) in enumerate(data_loader):
             image = image.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True)
             output = model(image)
+            pred_opt = torch.sigmoid(output)
             loss += criterion(output, target).item()
 
             #pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            pred = (output > .5).int()
+            pred = (pred_opt > .5).int()
+
+            # Put everything in a dataframe for display
+            match = np.all(target.int().to(torch.device("cpu")).numpy()==pred.to(torch.device("cpu")).numpy() , axis=1)
+            dicDf = {'Image': name,
+             'Actual': target.int().to(torch.device("cpu")).numpy().tolist(),
+             'Prediction': pred.to(torch.device("cpu")).numpy().tolist(),
+             'Matching':match
+            }
+            epochDf = pd.DataFrame(dicDf, columns = ['Image', 'Actual','Prediction','Matching'])
+            checkDf = pd.concat([checkDf, epochDf], axis =0,ignore_index=True, sort=False)
 
             accuracy_score = accuracy_score + hamming_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
             precision = precision + precision_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
             recall = recall + recall_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
             f1= f1 + f1_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
 
+        #print(checkDf.iloc[:,:])
+        filePath='result/validation_result_'+str(epoch)+'.csv'
+        checkDf.to_csv(filePath)
         #print("Number of batches : ",len(data_loader) , " and also : ",data_loader.batch_size)
         loss /= len(data_loader.dataset)/data_loader.batch_size
 
@@ -188,7 +212,11 @@ def main(args):
 
         # Step2. load dataset and dataloader
         dataset_train, dataset_val = load_data(args.train_path, args.val_path,args.augmentation)
-        train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
+        sample_weights = dataset_train.sample_weights
+        samples_weights = torch.tensor(sample_weights)
+        weightedsampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=True)
+
+        train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=False,sampler=weightedsampler)
         val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
 
         print('\n-----Initial Dataset Information-----')
@@ -196,18 +224,23 @@ def main(args):
         print('num images in val_dataset     : {}'.format(len(dataset_val)))
         print('-------------------------------------')
 
-        a,b = dataset_train[0]
-        print('\nwe are working with \nImages shape: {} and \nTarget shape: {}'.format( a.shape, b))
+        a,b,c = dataset_train[0]
+        print('\nwe are working with \n Image name: {} and \nImages shape: {} and \nTarget shape: {}'.format(c, a.shape, b))
 
         # Step3. Instantiate the model
-        #model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
-        #TODO: fix the model
-        model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
+        #VGG16
+        #model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
         # change the last linear layer
-        num_features = model.classifier[6].in_features
-        features = list(model.classifier.children())[:-1] # Remove last layer
-        features.extend([nn.Linear(num_features, args.num_classes)]) # Add our layer with 4 outputs
-        model.classifier = nn.Sequential(*features) # Replace the model classifier
+        #num_features = model.classifier[6].in_features
+        #features = list(model.classifier.children())[:-1] # Remove last layer
+        #features.extend([nn.Linear(num_features, args.num_classes)]) # Add our layer with 4 outputs
+        #model.classifier = nn.Sequential(*features) # Replace the model classifier
+
+        #Resnet 18
+        model = models.resnet18(pretrained=True)
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, args.num_classes)
+
 
         #print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
         model.to(device)
@@ -219,6 +252,14 @@ def main(args):
         # Step4. Binary Croos Entropy loss for multi-label classification
 
         criterion = nn.BCEWithLogitsLoss().to(device)
+
+        #Delete:
+        #params_to_update = model.parameters()
+        #print("Params to learn:" ,params_to_update)
+
+        for name,param in model.named_parameters():
+            if param.requires_grad == True:
+                print("\t",name)
 
         # Step5. Adam optimizer and lr scheduler
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
