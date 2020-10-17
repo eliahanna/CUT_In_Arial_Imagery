@@ -227,6 +227,10 @@ def main(args):
         a,b,c = dataset_train[0]
         print('\nwe are working with \n Image name: {} and \nImages shape: {} and \nTarget shape: {}'.format(c, a.shape, b))
 
+        #dataiter = iter(train_loader)
+        #images, labels,name = dataiter.next()
+        #print("sampe :",images.shape)
+
         # Step3. Instantiate the model
         #VGG16
         #model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
@@ -262,7 +266,9 @@ def main(args):
                 print("\t",name)
 
         # Step5. Adam optimizer and lr scheduler
-        optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        #optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+
         # Let's not do the learning rate scheduler now
         #lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
@@ -320,7 +326,7 @@ def parse_args():
     parser.add_argument('--device', default='cpu', help='the device platform for train, cuda or cpu.')
     parser.add_argument('-b', '--batch-size', default=16, type=int, help='training batch size')
     parser.add_argument('--epochs', default=90, type=int, help='train epochs')
-    parser.add_argument('--lr', default=0.1, type=float, help='initial learning rate')
+    parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
 
     parser.add_argument('--print-freq', default=20, type=int, help='print frequency')
     parser.add_argument('--ckp-dir', default='checkpoint', help='path to save checkpoint')
