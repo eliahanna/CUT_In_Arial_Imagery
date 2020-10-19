@@ -1,4 +1,4 @@
-** Preprocessing **
+**Preprocessing**
 
 1. Preprocessing creates the folders in a structure which can be consumed by domain transfer algorithms and calssification algorithms.
 
