@@ -21,9 +21,10 @@
 *calss_type* : The parameter defines how the calssids are defined. In case it is *category* then it selects the classid definition from *category_label_all.json* and *category_id_all.json*. In this case the classids are based on 15 subcategories. In case it is *label* then it selects the classid definition from *category_label.json* and *category_id.json*. In this case lassids are based on 43 labels. The category_label and category_id json files can be adjusted to change the subcategories.
 
 4. The program generates the following folder structure:
-
+```
 +-- output
 |   +-- CUT
 |   +-- alldata
 |   +-- model
 |   +-- flatselected.csv
+```
