@@ -24,7 +24,36 @@
 ```
 +-- output
 |   +-- CUT
+|       +-- dataset
+|           +-- trainA
+|           +-- trainB
+|       +-- predict
+|           +-- dataset
+|               +-- trainA
+|               +-- trainB
+|       +-- test
 |   +-- alldata
 |   +-- model
+|       +-- test
+|       +-- train
+|       +-- validate
 |   +-- flatselected.csv
+|   +-- labelall.csv
+|   +-- labelselected.csv
+|   +-- labelsummary.csv
 ```
+*CUT* : Folder for all CUT data
+*CUT/dataset/*: All dataset for CUT training
+*CUT/predict* : Dataset to generate fake data from the trained CUT model
+*CUT/test*: Dataset to validate the output from CUT model
+*alldata* : All images used for the processing
+*model* : Dataset used in RESNET and VGG models
+*model/train* : Train dataset for RESNET and VGG models
+*model/test* : Test dataset for RESNET and VGG models
+*model/validate* : Validate dataset for RESNET and VGG models
+*flatselected.csv* : Flattened list of images with classids
+*labelall.csv* : Label information for all images
+*labelselected* : Label information for selected images
+*labelsummary.csv* : Summary label information for selected images
+
+*Execution time : 4600 secs for all images*
