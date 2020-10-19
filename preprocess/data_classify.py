@@ -84,11 +84,16 @@ def get_data_stats(all_folders,categories,config,classids,writepath):
                             select_record_summer.append(folder)
                         imagefile = folder + '.jpg'    
                         classid = classids[label]
+                        #print ('class:',classid)
                         selected_records.append([imagefile , folder,categories[label], label,classid])
                         data_selected=0
                             
                 all_record.append([folder, categories[label], label, record_type])
+        #print (all_record)
         cnt = cnt + 1
+        #print (cnt)
+        if (cnt  % 10000) == 0 :
+            print (cnt)
     df=pd.DataFrame(all_record, columns=['folder' , 'category', 'label' , 'record_type'])
     new_df = df.groupby(['category' , 'label','record_type']).size().reset_index(name='counts') 
     selected_df = pd.DataFrame(selected_records, columns=['file' , 'folder' , 'category', 'label' , 'classid'])
@@ -99,14 +104,22 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
     print (selected_df.classid.unique())
     cnt_winter = len(select_winter)
     cnt_summer = len(select_summer)
-    winter_split = math.floor (cnt_winter/3)
-    summer_split = math.floor(cnt_summer/3)
-    cut_trainA = summer_split
-    cut_trainB = winter_split
-    cut_test = winter_split
-    model_train = summer_split
+    #winter_split = math.floor (cnt_winter/3)
+    #summer_split = math.floor(cnt_summer/3)
+    cut_trainA = math.floor (cnt_winter/20)
+    cut_trainB = math.floor (cnt_summer/20)
+    cut_test = math.floor (cnt_winter/3)
+    model_train = math.floor ( 3 * cnt_summer/4)
     model_test = cnt_summer -(cut_trainA + model_train)
     model_validate = cnt_winter - (cut_trainB + cut_test)
+    print ('Total Summer Images: ' , cnt_summer)
+    print ('Total Winter Images: ' , cnt_winter)
+    print ('CUT Train A:' , cut_trainA)
+    print ('CUT Train B:' , cut_trainB)
+    print ('CUT Test :' , cut_test)
+    print ( 'Model Train :' , model_train)
+    print ('Model Test :' , model_test)
+    print ('Model Validate :' , model_validate)
     winter_rand = list(range(0, cnt_winter))
     summer_rand = list(range(0,cnt_summer))
     random.shuffle(winter_rand)
@@ -120,6 +133,10 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
     modeltrain = writepath + '/model/train'
     modeltest = writepath + '/model/test'
     modelvalidate = writepath + '/model/validate'
+    cutpredict =  writepath +  '/CUT/predict'
+    cutpredictdataset = cutpredict + '/dataset'
+    cutprtrainA = cutpredictdataset + '/trainA'
+    cutprtrainB = cutpredictdataset + '/trainB'
     #os.mkdir(writepath + '/CUT')
     #os.mkdir(writepath + '/model')
     os.mkdir(cut)
@@ -131,6 +148,10 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
     os.mkdir(modeltrain)
     os.mkdir(modeltest)
     os.mkdir(modelvalidate)
+    os.mkdir(cutpredict)
+    os.mkdir(cutpredictdataset)
+    os.mkdir(cutprtrainA)
+    os.mkdir(cutprtrainB)
     for classid in selected_df.classid.unique():
         classdir = writepath + '/model/train/' + classid
         os.mkdir(classdir)    
@@ -151,12 +172,19 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
             class_list = selected_df[selected_df['folder'] == select_summer[i]]['classid'].values.tolist() 
             for class_value in class_list:
                 target = modeltrain + '/' + class_value + '/' + select_summer[i] + '.jpg'
+                shutil.copyfile(source_file , target)
+            target = cutprtrainA + '/' + select_summer[i] + '.jpg'     
         else:
             class_list = selected_df[selected_df['folder'] == select_summer[i]]['classid'].values.tolist()
             for class_value in class_list:
                 target = modeltest + '/'+ class_value + '/'  + select_summer[i] + '.jpg'
         shutil.copyfile(source_file , target)
+        if cnt == cut_trainA:
+            print ("Completed CUT trainA generation")
+        elif cnt == (cut_trainA + model_train):
+            print ("Completed model train generation")    
         cnt = cnt + 1    
+    print ("Completed model test generation")
     cnt = 0
     for i in winter_rand:
         source_file = source_dir + '/' + select_winter[i] + '.jpg'
@@ -164,39 +192,52 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
             target = cuttrainB + '/' + select_winter[i] + '.jpg'
         elif cnt < (cut_trainB + cut_test):
             target = cuttest + '/' + select_winter[i] + '.jpg'
+            shutil.copyfile(source_file , target)
+            target = cutprtrainB + '/' + select_winter[i] + '.jpg'
         else:
             class_list = selected_df[selected_df['folder'] == select_winter[i]]['classid'].values.tolist()
             for class_value in class_list:
                 target = modelvalidate + '/'+ class_value + '/'  + select_winter[i] + '.jpg'
         shutil.copyfile(source_file , target)
+        if cnt == cut_trainB:
+            print ("Completed CUT trainB generation")
+        elif cnt == (cut_trainB + cut_test):
+            print ("Completed CUT Test generation")
         cnt = cnt + 1    
+    print ("Completed model validate generation")
     print(cnt)
     print (cut_trainA,cut_trainB,cut_test,model_train,model_test)
 
 ### Main Section
 start_time = time.time()
 folderpath=sys.argv[1]
-categoryfile='category_label.json'
-classidfile = 'category_id.json'
+with open("dataselect_config.json") as f:
+        config = json.load(f)
+if config['class_type'] == 'category':
+    categoryfile='category_label_all.json'
+    classidfile = 'category_id_all.json'
+else:    
+    categoryfile='category_label.json'
+    classidfile = 'category_id.json'
 outdir=sys.argv[2]
 outsummaryfile=outdir + '/' + 'labelsummary.csv'
 outallfile=outdir + '/' + 'labelall.csv'
 outselected = outdir + '/' + 'labelselected.csv'
+flatselected = outdir + '/' +'flatselected.csv'
 all_folders = listdir(folderpath)
 print ('file_name' , ',' , 'label', ',' , 'record_type')
-with open(categoryfile) as f:
-        categories = json.load(f)
-with open("dataselect_config.json") as f:
-        config = json.load(f)
 with open(classidfile) as f:
         classids = json.load(f)        
-
+with open(categoryfile) as f:
+        categories = json.load(f)
 writepath= outdir + '/' + 'alldata'
 if os.path.exists(outdir):
     shutil.rmtree(outdir)
 os.mkdir(outdir)
 os.mkdir(writepath)
+print ('Folder Created')
 df,new_df,cnt , cnt_selected,select_winter , select_summer,selected_df = get_data_stats(all_folders,categories,config,classids,writepath)
+print ('Image Name Selected')
 get_splits(select_winter, select_summer,outdir,selected_df)
 print (cnt , cnt_selected)
 print(new_df)
@@ -204,4 +245,9 @@ new_df.to_csv(outsummaryfile, index=False)
 df.to_csv(outallfile,index=False)
 print(len(selected_df))
 selected_df.to_csv(outselected,index=False)
+selected_df_new = selected_df[['file' , 'classid']]
+selected_df_new['classid'] = selected_df_new['classid'].astype(int)
+flat_df = selected_df_new.groupby(['file']).agg(lambda x: x.tolist())
+print(flat_df)
+flat_df.to_csv(flatselected)
 print("Exectuion Time :  %s seconds " % (time.time() - start_time))
