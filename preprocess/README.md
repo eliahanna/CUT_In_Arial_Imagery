@@ -1,3 +1,5 @@
+** Preprocessing **
+
 1. Preprocessing creates the folders in a structure which can be consumed by domain transfer algorithms and calssification algorithms.
 
 2. To execute preprocessing  data_classify.py needs to be executed. Following is how to execute it : ``` python3 data_classify.py /data/capstone/BigEarthNet-v1.0 output```. The first parameter points to the source folder with all Big Earth images. The second parameter is the output folder where the data is generated.
