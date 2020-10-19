@@ -240,7 +240,7 @@ def make_multi_dataset(dir, class_to_idx, extensions):
     columns=(sorted(class_to_idx.keys()))
     dictDataType={column:'Int64' for column in columns}
     columns.insert(0,'Image')
-
+    columns.insert(1,'ImageName')
     df = pd.DataFrame(columns = columns )
     df= df.astype(dictDataType)
 
@@ -260,11 +260,26 @@ def make_multi_dataset(dir, class_to_idx, extensions):
                     else:
                         #print(df.loc[df.Image.str.contains(fname)])
                         #print("name of the image ",fname)
-                        df = df.append({columns[0] : path , target : 1} , ignore_index=True)
+                        df = df.append({columns[0]:path, columns[1] : fname , target : 1} , ignore_index=True)
 
     df=df.fillna(0)
-    #print("Data frame ",df.iloc[100:150,1:])
-    return df
+    valCount= df.apply( lambda s : s.value_counts().get(key=1,default=0 ) , axis=0)
+    sample_counts = valCount[2:].to_numpy()
+    weight = 1. / (sample_counts)
+    class_to_idx_keys=sorted(class_to_idx.keys())
+    class_to_weights = {class_to_idx_keys[i]: weight[i] for i in range(len(class_to_idx_keys))}
+    df['Weights'] = 0
+    #print("Weights Counts ",weight)
+    print ("class_to_weights: ",class_to_weights)
+    for col in sorted(class_to_idx.keys()):
+        df.loc[df[col] == 1, 'Weights'] = df['Weights'] + class_to_weights[col]
+
+
+    sample_weights = df['Weights']
+    #print(sample_weights)
+    df = df.drop(['Weights'], axis = 1)
+    #print(df.iloc[:,1:])
+    return df,sample_weights.to_numpy()
 
 # This dataloader is used for multi label classification
 class ImageMultiLabelDataset(data.Dataset):
@@ -309,7 +324,7 @@ class ImageMultiLabelDataset(data.Dataset):
         print("classes ",classes)
         print("class_to_idx ",class_to_idx)
 
-        samples = make_multi_dataset(root, class_to_idx, extensions)
+        samples,sample_weights = make_multi_dataset(root, class_to_idx, extensions)
         if len(samples) == 0:
             raise(RuntimeError("Found 0 files in subfolders of: " + root + "\n"
                                                                            "Supported extensions are: " + ",".join(extensions)))
@@ -321,6 +336,7 @@ class ImageMultiLabelDataset(data.Dataset):
         self.classes = classes
         self.class_to_idx = class_to_idx
         self.samples = samples
+        self.sample_weights = sample_weights
         print("The shape of the dataset: ",samples.shape)
         #self.targets = [s[1] for s in samples]
 
@@ -359,7 +375,8 @@ class ImageMultiLabelDataset(data.Dataset):
         """
         row = self.samples.iloc[index, :]
         path=row.Image
-        target = row[1:].values
+        name=row.ImageName
+        target = row[2:].values
         target = target.astype('double')
         sample = self.loader(path)
         if self.transform is not None:
@@ -367,7 +384,7 @@ class ImageMultiLabelDataset(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return sample, target
+        return sample, target ,name
 
     def __len__(self):
         return len(self.samples)
@@ -388,41 +405,56 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import torchvision
     import torchvision.transforms as transforms
-    traindir='/Users/adas1/Aditi/personal/school/210/dataloader/model'
+    from torch.utils.data import WeightedRandomSampler
+    import torch
+    traindir='/Users/adas1/Aditi/personal/school/210/bigearthnet/preprocess/output/model/train'
 
-    train_transform = {
-        'none' : transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.ToTensor(),
-  #         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ]),
-        'augment' : transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.RandomHorizontalFlip(0.5),
-            transforms.RandomVerticalFlip(0.5),
-            transforms.RandomGrayscale(0.5),
-            transforms.RandomRotation(40),
+    #train_transform = {
+    #    'none' : transforms.Compose([
+    #        transforms.ToPILImage(),
+    #        transforms.ToTensor(),
+  #  #       transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    #    ]),
+    #    'augment' : transforms.Compose([
+    #        transforms.ToPILImage(),
+    #        transforms.RandomHorizontalFlip(0.5),
+     #       transforms.RandomVerticalFlip(0.5),
+     #       transforms.RandomGrayscale(0.5),
+     #       transforms.RandomRotation(40),
             #transforms.Grayscale(num_output_channels=3),
-            transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.1, hue=0),
-            transforms.ToTensor(),
+    #        transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.1, hue=0),
+     #       transforms.ToTensor(),
             #          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-    }
-    dataset_train = ImageMultiLabelDataset(root=traindir,transform=train_transform["augment"])
-    batch_size = 1
-    dataloader = DataLoader(dataset_train, batch_size, shuffle=True, num_workers=0)
-    fig, axs = plt.subplots(1, batch_size, figsize=(3,3))
-    print("length of the dataloader ",len(dataloader.dataset))
-    #dataloader output 4 dimensional tensor - [batch, channel, height, width]. Matplotlib and other image processing libraries often requires [height, width, channel].
-    for j, (image, target) in enumerate(dataloader):
-        for i in range(batch_size):
-            print("i ",i ,image[i].shape)
-            img =image[i] #/ 2 + 0.5
-            #your transpose should convert a now [channel, height, width] tensor to a [height, width, channel] one. To do this, use np.transpose(image.numpy(), (1, 2, 0))
-            img=np.transpose(img.numpy(), (1, 2, 0))
-            #print("Values ", target[i].numpy(), image[i].numpy().shape)
-            axs.imshow(img)
+    #    ])
+    #}
+    dataset_train = ImageMultiLabelDataset(root=traindir,transform=None)
+    sample_weights = dataset_train.sample_weights
+    print("sample Weoghts: ",sample_weights)
 
-        break
-    plt.show()
+    samples_weights = torch.tensor(sample_weights)
+    sampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=False)
+
+    batch_size = 16
+
+    dataloader = DataLoader(dataset_train, batch_size, num_workers=0,shuffle=False,sampler = sampler)
+    #print("Length of the dataloader: ",len(dataloader))
+    #fig, axs = plt.subplots(1, batch_size, figsize=(3,3))
+    #print("length of the dataloader ",len(dataloader.dataset))
+    #dataloader output 4 dimensional tensor - [batch, channel, height, width]. Matplotlib and other image processing libraries often requires [height, width, channel].
+    for j, (image, target,name) in enumerate(dataloader):
+        print("index ",j)
+        print("Target ",target)
+        if j==2:
+            break
+
+    #    for i in range(batch_size):
+    #        print("i ",i ,image[i].shape)
+    #        img =image[i] #/ 2 + 0.5
+            #your transpose should convert a now [channel, height, width] tensor to a [height, width, channel] one. To do this, use np.transpose(image.numpy(), (1, 2, 0))
+    #        img=np.transpose(img.numpy(), (1, 2, 0))
+            #print("Values ", target[i].numpy(), image[i].numpy().shape)
+    #        axs.imshow(img)
+
+    #    break
+    #plt.show()
 
