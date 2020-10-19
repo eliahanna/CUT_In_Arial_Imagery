@@ -22,7 +22,6 @@
 
 4. The program generates the following folder structure:
 
-.
 +-- output
 |   +-- CUT
 |   +-- alldata
