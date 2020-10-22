@@ -1,5 +1,6 @@
 {
-"selection_type":"category",
+"selection_type":"all",
 "label_array": ["Airports","Construction sites", "Port areas"],
-"category" : "Artificial Surfaces"
+"category" : "Forest",
+"class_type":"category"
 }
