@@ -14,6 +14,9 @@ from model.utils import get_model
 import torchvision.models as models
 import pandas as pd
 from torch.utils.data import WeightedRandomSampler
+import collections
+import logging
+
 
 # define a function to count the total number of trainable parameters
 def count_parameters(model):
@@ -77,7 +80,7 @@ def hamming_score(y_true, y_pred, normalize=True, sample_weight=None):
         acc_list.append(tmp_a)
     return np.mean(acc_list)
 
-def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer):
+def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer,logging,losses_dict):
     model.train()
     epoch_loss = 0
     for idx, (image, target,name) in enumerate(data_loader):
@@ -92,21 +95,23 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
         #print("pred_opt ",pred_opt)
         # Calculate Loss
         loss = criterion(output, target)
-        #epoch_loss = epoch_loss + loss.item()
         # Backward and optimize
         loss.backward()
         # Updating parameters
         optimizer.step()
+        epoch_loss = epoch_loss + loss.item()
 
         if idx % print_freq == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            logging.info('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, idx * len(image), len(data_loader.dataset), 100. * idx / len(data_loader), loss.item()))
             writer.add_scalar('Train/loss', loss.item(), len(data_loader) * epoch + idx)
 
-    #epoch_loss /= len(data_loader.dataset)/data_loader.batch_size
+    epoch_loss /= len(data_loader.dataset)/data_loader.batch_size
+    losses_dict['epoch_train_loss'].append(epoch_loss)
+
     #writer.add_scalar('Train/epoch loss', epoch_loss, epoch)
 
-def evaluate(epoch, model, criterion, data_loader, device, writer):
+def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses_dict):
     model.eval()
     loss = 0
     accuracy_score = 0
@@ -152,9 +157,10 @@ def evaluate(epoch, model, criterion, data_loader, device, writer):
         precision /= len(data_loader)
         recall /= len(data_loader)
         f1 /= len(data_loader)
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {}, Precision: {} , Recall: {} , F1 score: {} \n'.format(
+        logging.info('\nTest set: Average loss: {:.4f}, Accuracy: {}, Precision: {} , Recall: {} , F1 score: {} \n'.format(
             loss, accuracy_score,precision,recall,f1))
 
+        losses_dict['epoch_val_loss'].append(loss)
         writer.add_scalar('test/loss', loss,  epoch)
         writer.add_scalar('test/accuracy', accuracy_score, epoch)
         writer.add_scalar('test/Precision', precision, epoch )
@@ -174,9 +180,9 @@ def load_data(traindir, valdir,augmentation=False):
             transforms.ToPILImage(),
             transforms.RandomHorizontalFlip(0.5),
             transforms.RandomVerticalFlip(0.5),
-            transforms.RandomGrayscale(0.2),
+            #transforms.RandomGrayscale(0.2),
             transforms.RandomRotation(40),
-            transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0, hue=0),
+            #transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0, hue=0),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -197,18 +203,25 @@ def load_data(traindir, valdir,augmentation=False):
 
 def main(args):
     torch.backends.cudnn.benchmark = True
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(args.ckp_dir + '/' +args.model+".log"),
+            logging.StreamHandler()
+        ]
+    )
+
 
     #Step1. CPU or GPU
     device = torch.device('cuda' if args.device == 'cuda' else 'cpu')
     script_start_time = time.time() # tells the total run time of this script
-    #Test model
+    # making empty lists to collect all the losses
+    losses_dict = collections.defaultdict(list)
+    #losses_dict = {'epoch_train_loss': [], 'epoch_val_loss': [], 'total_train_loss_list': [], 'total_val_loss_list': []}
+    #Train model
     if not args.test: # Training flow
         print("Training Flow ")
-
-
-        # making empty lists to collect all the losses
-        #TODO : populate this dictionay
-        losses_dict = {'epoch_train_loss': [], 'epoch_val_loss': [], 'total_train_loss_list': [], 'total_val_loss_list': []}
 
         # Step2. load dataset and dataloader
         dataset_train, dataset_val = load_data(args.train_path, args.val_path,args.augmentation)
@@ -276,10 +289,10 @@ def main(args):
         for epoch in range(args.epochs):
             #writer.add_scalar('train/learning_rate', lr_scheduler.get_lr()[0], epoch)
             # Step6. Train the epoch
-            train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer)
+            train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict)
             #lr_scheduler.step()
             # Step7. Validate after each epoch
-            evaluate(epoch, model, criterion, val_loader, device, writer)
+            evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict)
             # Step8. Save the model after each epoch
             torch.save(model.state_dict(), os.path.join(args.ckp_dir, "cls_epoch_{}.pth".format(epoch)))
         writer.close()
@@ -294,21 +307,26 @@ def main(args):
         dataset_test = ImageMultiLabelDataset(root=args.test_path, transform=test_transform)
         test_loader = DataLoader(dataset_test, batch_size=args.batch_size, shuffle=True)
         #Load model
-        model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
+        #model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
+        model = models.resnet18(pretrained=True)
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, args.num_classes)
         model.to(device)
 
         model.load_state_dict(torch.load(args.test_model, map_location=device))
         #Loss and optimizer
         criterion = nn.BCEWithLogitsLoss().to(device)
-        optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        evaluate(1, model, criterion, test_loader, device, writer)
+        #optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+        evaluate(1, model, criterion, test_loader, device, writer,logging,losses_dict)
         writer.close()
 
 
     time_elapsed = time.time() - script_start_time
     m, s = divmod(time_elapsed, 60)
     h, m = divmod(m, 60)
-    print('{} h {}m is taken by the script to complete!'.format(int(h), int(m)))
+    logging.info('{} h {}m is taken by the script to complete!'.format(int(h), int(m)))
+    logging.info('losses '.format(losses_dict))
 
 
 def parse_args():
