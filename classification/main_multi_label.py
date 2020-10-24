@@ -16,6 +16,7 @@ import pandas as pd
 from torch.utils.data import WeightedRandomSampler
 import collections
 import logging
+import matplotlib.pyplot as plt
 
 
 # define a function to count the total number of trainable parameters
@@ -108,6 +109,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
 
     epoch_loss /= len(data_loader.dataset)/data_loader.batch_size
     losses_dict['epoch_train_loss'].append(epoch_loss)
+    #logging.info(epoch_loss)
 
     #writer.add_scalar('Train/epoch loss', epoch_loss, epoch)
 
@@ -150,7 +152,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
         filePath='result/validation_result_'+str(epoch)+'.csv'
         checkDf.to_csv(filePath)
         #print("Number of batches : ",len(data_loader) , " and also : ",data_loader.batch_size)
-        loss /= len(data_loader.dataset)/data_loader.batch_size
+        loss /= len(data_loader)
 
         #print(" Final Accuracy score : ",accuracy_score)
         accuracy_score /= len(data_loader)
@@ -158,14 +160,17 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
         recall /= len(data_loader)
         f1 /= len(data_loader)
         logging.info('\nTest set: Average loss: {:.4f}, Accuracy: {}, Precision: {} , Recall: {} , F1 score: {} \n'.format(
-            loss, accuracy_score,precision,recall,f1))
+            loss, round(accuracy_score,4),round(precision,4),round(recall,4),round(f1,4)))
 
         losses_dict['epoch_val_loss'].append(loss)
+        losses_dict['validation_accuracy'].append(round(accuracy_score,4))
+        losses_dict['validation_F1_score'].append((round(f1,4)))
         writer.add_scalar('test/loss', loss,  epoch)
         writer.add_scalar('test/accuracy', accuracy_score, epoch)
         writer.add_scalar('test/Precision', precision, epoch )
         writer.add_scalar('test/Recall', recall,epoch)
         writer.add_scalar('test/F1 score', f1 ,epoch)
+        #logging.info(losses_dict)
 
 #load the data as image and multiLabel
 def load_data(traindir, valdir,augmentation=False):
@@ -245,20 +250,21 @@ def main(args):
         #print("sampe :",images.shape)
 
         # Step3. Instantiate the model
-        #VGG16
-        #model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
-        # change the last linear layer
-        #num_features = model.classifier[6].in_features
-        #features = list(model.classifier.children())[:-1] # Remove last layer
-        #features.extend([nn.Linear(num_features, args.num_classes)]) # Add our layer with 4 outputs
-        #model.classifier = nn.Sequential(*features) # Replace the model classifier
+        if args.model == 'vgg':
+            #VGG16
+            model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
+            # change the last linear layer
+            num_features = model.classifier[6].in_features
+            features = list(model.classifier.children())[:-1] # Remove last layer
+            features.extend([nn.Linear(num_features, args.num_classes)]) # Add our layer with 4 outputs
+            model.classifier = nn.Sequential(*features) # Replace the model classifier
+        else:
+            #Resnet 50
+            model = models.resnet50(pretrained=True)
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Linear(num_ftrs, args.num_classes)
 
-        #Resnet 18
-        model = models.resnet18(pretrained=True)
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, args.num_classes)
-
-
+        print(model)
         #print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
         model.to(device)
         if args.resume:
@@ -283,18 +289,19 @@ def main(args):
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
         # Let's not do the learning rate scheduler now
-        #lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
         writer = SummaryWriter(args.ckp_dir)
         for epoch in range(args.epochs):
             #writer.add_scalar('train/learning_rate', lr_scheduler.get_lr()[0], epoch)
             # Step6. Train the epoch
             train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict)
-            #lr_scheduler.step()
+            lr_scheduler.step()
             # Step7. Validate after each epoch
             evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict)
-            # Step8. Save the model after each epoch
-            torch.save(model.state_dict(), os.path.join(args.ckp_dir, "cls_epoch_{}.pth".format(epoch)))
+            # Step8. Save the model after 10 epoch
+            if epoch % 10 == 9:
+                torch.save(model.state_dict(), os.path.join(args.ckp_dir, "cls_epoch_{}.pth".format(epoch)))
         writer.close()
     else:
         print("Testing Flow")
@@ -308,16 +315,27 @@ def main(args):
         test_loader = DataLoader(dataset_test, batch_size=args.batch_size, shuffle=True)
         #Load model
         #model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
-        model = models.resnet18(pretrained=True)
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, args.num_classes)
+        if args.model == 'vgg':
+            #VGG16
+            model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
+            # change the last linear layer
+            num_features = model.classifier[6].in_features
+            features = list(model.classifier.children())[:-1] # Remove last layer
+            features.extend([nn.Linear(num_features, args.num_classes)]) # Add our layer with 4 outputs
+            model.classifier = nn.Sequential(*features) # Replace the model classifier
+        else:
+            #Resnet 50
+            model = models.resnet50(pretrained=True)
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Linear(num_ftrs, args.num_classes)
+
         model.to(device)
 
         model.load_state_dict(torch.load(args.test_model, map_location=device))
         #Loss and optimizer
         criterion = nn.BCEWithLogitsLoss().to(device)
         #optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
         evaluate(1, model, criterion, test_loader, device, writer,logging,losses_dict)
         writer.close()
 
@@ -326,7 +344,25 @@ def main(args):
     m, s = divmod(time_elapsed, 60)
     h, m = divmod(m, 60)
     logging.info('{} h {}m is taken by the script to complete!'.format(int(h), int(m)))
-    logging.info('losses '.format(losses_dict))
+    logging.info('losses At the end {}'.format(losses_dict))
+
+    #plot and save graph
+    if not args.test: # Training flow
+        plt.plot(losses_dict['epoch_train_loss'])
+        plt.plot(losses_dict['epoch_val_loss'])
+        plt.title('Model Losses')
+        plt.ylabel('Loss')
+        plt.xlabel('Epoch')
+        plt.legend(['Train', 'Validation'], loc='upper left')
+        plt.savefig(args.ckp_dir+'/losses.png', bbox_inches='tight')
+
+        plt.plot(losses_dict['validation_accuracy'])
+        plt.plot(losses_dict['validation_F1_score'])
+        plt.title('Model Evaluation')
+        plt.ylabel('Accuracy')
+        plt.xlabel('Epoch')
+        plt.legend(['Accuracy', 'F1 score'], loc='upper left')
+        plt.savefig(args.ckp_dir+'/accuracy.png', bbox_inches='tight')
 
 
 def parse_args():
@@ -344,7 +380,7 @@ def parse_args():
     parser.add_argument('--device', default='cpu', help='the device platform for train, cuda or cpu.')
     parser.add_argument('-b', '--batch-size', default=16, type=int, help='training batch size')
     parser.add_argument('--epochs', default=90, type=int, help='train epochs')
-    parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
+    parser.add_argument('--lr', default=0.1, type=float, help='initial learning rate')
 
     parser.add_argument('--print-freq', default=20, type=int, help='print frequency')
     parser.add_argument('--ckp-dir', default='checkpoint', help='path to save checkpoint')
