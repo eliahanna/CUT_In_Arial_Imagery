@@ -148,9 +148,9 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
             recall = recall + recall_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
             f1= f1 + f1_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
 
-        #print(checkDf.iloc[:,:])
-        filePath='result/validation_result_'+str(epoch)+'.csv'
-        checkDf.to_csv(filePath)
+        if epoch % 10 == 9:
+            filePath=args.ckp_dir+'/validation_result_'+str(epoch)+'.csv'
+            checkDf.to_csv(filePath)
         #print("Number of batches : ",len(data_loader) , " and also : ",data_loader.batch_size)
         loss /= len(data_loader)
 
@@ -296,7 +296,7 @@ def main(args):
             #writer.add_scalar('train/learning_rate', lr_scheduler.get_lr()[0], epoch)
             # Step6. Train the epoch
             train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict)
-            lr_scheduler.step()
+            #lr_scheduler.step()
             # Step7. Validate after each epoch
             evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict)
             # Step8. Save the model after 10 epoch
@@ -380,7 +380,7 @@ def parse_args():
     parser.add_argument('--device', default='cpu', help='the device platform for train, cuda or cpu.')
     parser.add_argument('-b', '--batch-size', default=16, type=int, help='training batch size')
     parser.add_argument('--epochs', default=90, type=int, help='train epochs')
-    parser.add_argument('--lr', default=0.1, type=float, help='initial learning rate')
+    parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
 
     parser.add_argument('--print-freq', default=20, type=int, help='print frequency')
     parser.add_argument('--ckp-dir', default='checkpoint', help='path to save checkpoint')
