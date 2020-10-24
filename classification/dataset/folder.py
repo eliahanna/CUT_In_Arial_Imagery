@@ -9,6 +9,7 @@ import torch.utils.data as data
 from PIL import Image
 import numpy as np
 import pandas as pd
+import os, time
 
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', 'webp']
 
@@ -237,13 +238,14 @@ class ImageFolder(DatasetFolder):
 # This will return a dataframe with the image full url and all the labels
 # This method will be used for multi-label classification
 def make_multi_dataset(dir, class_to_idx, extensions):
+    script_start_time = time.time() # tells the total run time of this script
     columns=(sorted(class_to_idx.keys()))
     dictDataType={column:'Int64' for column in columns}
     columns.insert(0,'Image')
     columns.insert(1,'ImageName')
     df = pd.DataFrame(columns = columns )
     df= df.astype(dictDataType)
-
+    dfdict = {}
     dir = os.path.expanduser(dir)
     for target in sorted(class_to_idx.keys()):
         d = os.path.join(dir, target)
@@ -254,15 +256,26 @@ def make_multi_dataset(dir, class_to_idx, extensions):
             for fname in sorted(fnames):
                 if has_file_allowed_extension(fname, extensions):
                     path = os.path.join(root, fname)
-                    if(df.Image.str.contains(fname).any()):
-                        #print("Row alreaady exists ",df.Image.str.contains(fname).any())
-                        df.loc[df.Image.str.contains(fname),target] =1
+                    if(fname in dfdict) :
+                        dfdict[fname][target]=1
                     else:
-                        #print(df.loc[df.Image.str.contains(fname)])
-                        #print("name of the image ",fname)
-                        df = df.append({columns[0]:path, columns[1] : fname , target : 1} , ignore_index=True)
+                        dfdict[fname]={columns[0]:path, columns[1] : fname , target : 1}
+                    #if(df.Image.str.contains(fname).any()):
+                     #   df.loc[df.Image.str.contains(fname),target] =1
+                    #else:
+                     #  df = df.append({columns[0]:path, columns[1] : fname , target : 1} , ignore_index=True)
 
+    #tempDF = pd.DataFrame(columns = columns )
+    #tempDF= tempDF.astype(dictDataType)
+    df = pd.DataFrame.from_dict(dfdict, "index",columns = columns)
+    df= df.astype(dictDataType)
     df=df.fillna(0)
+    df.reset_index(inplace=True)
+    df = df.drop(['index'], axis = 1)
+    print("Original Dataframe ",df.iloc[:,1:])
+
+    #print("dictionary Dataframe ",tempDF.iloc[:,1:])
+
     valCount= df.apply( lambda s : s.value_counts().get(key=1,default=0 ) , axis=0)
     sample_counts = valCount[2:].to_numpy()
     weight = 1. / (sample_counts)
@@ -279,6 +292,11 @@ def make_multi_dataset(dir, class_to_idx, extensions):
     #print(sample_weights)
     df = df.drop(['Weights'], axis = 1)
     #print(df.iloc[:,1:])
+    time_elapsed = time.time() - script_start_time
+    print("Time is dataloader: {} sec".format(round(time_elapsed)))
+    m, s = divmod(time_elapsed, 60)
+    h, m = divmod(m, 60)
+    print('Time taken by the dataset to load is : {} h {} m !'.format(int(h), int(m)))
     return df,sample_weights.to_numpy()
 
 # This dataloader is used for multi label classification
