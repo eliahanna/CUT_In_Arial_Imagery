@@ -260,9 +260,13 @@ def main(args):
             model.classifier = nn.Sequential(*features) # Replace the model classifier
         else:
             #Resnet 50
-            model = models.resnet50(pretrained=True)
+            model = models.resnet18(pretrained=True)
             num_ftrs = model.fc.in_features
-            model.fc = nn.Linear(num_ftrs, args.num_classes)
+            #model.fc = nn.Linear(num_ftrs, args.num_classes)
+            model.fc = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(num_ftrs, args.num_classes)
+            )
 
         print(model)
         #print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
@@ -285,7 +289,7 @@ def main(args):
                 print("\t",name)
 
         # Step5. Adam optimizer and lr scheduler
-        #optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        #optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=0.4)
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
         # Let's not do the learning rate scheduler now
@@ -325,9 +329,13 @@ def main(args):
             model.classifier = nn.Sequential(*features) # Replace the model classifier
         else:
             #Resnet 50
-            model = models.resnet50(pretrained=True)
+            model = models.resnet18(pretrained=True)
             num_ftrs = model.fc.in_features
-            model.fc = nn.Linear(num_ftrs, args.num_classes)
+            #model.fc = nn.Linear(num_ftrs, args.num_classes)
+            model.fc = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(num_ftrs, args.num_classes)
+            )
 
         model.to(device)
 
