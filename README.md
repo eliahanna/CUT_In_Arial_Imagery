@@ -3,6 +3,7 @@
 
 ## References
 * [Slide Show](https://docs.google.com/presentation/d/19oiKt0no4zbY6tm_8FUZn6wXmpXIvjLWI6HD_UWRF8M/edit?ts=5f60e106#slide=id.p)
+* [Presentation 2 Slide Show](https://docs.google.com/presentation/d/1BnX1egolFC08-aIfVxntyVcODXL1GEMiCQdiAgo2p0U/edit?usp=sharing)
 * [Meeting Notes](https://docs.google.com/document/d/1yrmghJ7MDKia_e4599bPVZS--dsykM7bCIAFgfwfaDw/edit?usp=sharing)
 * [Contrastive Learning for Unpaired Image-to-Image Translation](https://taesung.me/ContrastiveUnpairedTranslation/)
 * [CUT github repo](https://github.com/taesungp/contrastive-unpaired-translation)
