@@ -84,7 +84,7 @@ def hamming_score(y_true, y_pred, normalize=True, sample_weight=None):
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer,logging,losses_dict):
     model.train()
     epoch_loss = 0
-    for idx, (image, target,name) in enumerate(data_loader):
+    for idx, (image, target,name,pos_weight) in enumerate(data_loader):
         #print("Target ",target)
         # Move tensors to the configured device
         image, target = image.to(device), target.to(device)
@@ -123,7 +123,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
     checkDf = pd.DataFrame(columns = ['Image', 'Actual','Prediction','Matching'])
     # In test phase, we don't need to compute gradients (for memory efficiency)
     with torch.no_grad():
-        for idx, (image, target,name) in enumerate(data_loader):
+        for idx, (image, target,name,pos_weight) in enumerate(data_loader):
             image = image.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True)
             output = model(image)
@@ -137,7 +137,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
             match = np.all(target.int().to(torch.device("cpu")).numpy()==pred.to(torch.device("cpu")).numpy() , axis=1)
             dicDf = {'Image': name,
              'Actual': target.int().to(torch.device("cpu")).numpy().tolist(),
-             'Prediction': pred.to(torch.device("cpu")).numpy().tolist(),
+             'Prediction': pred_opt.to(torch.device("cpu")).numpy().tolist(),
              'Matching':match
             }
             epochDf = pd.DataFrame(dicDf, columns = ['Image', 'Actual','Prediction','Matching'])
@@ -154,7 +154,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
         #print("Number of batches : ",len(data_loader) , " and also : ",data_loader.batch_size)
         loss /= len(data_loader)
 
-        #print(" Final Accuracy score : ",accuracy_score)
+        print(" Total Accuracy score : ",accuracy_score)
         accuracy_score /= len(data_loader)
         precision /= len(data_loader)
         recall /= len(data_loader)
@@ -237,14 +237,16 @@ def main(args):
         train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=False,sampler=weightedsampler)
         val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
 
-        print('\n-----Initial Dataset Information-----')
-        print('num images in train_dataset   : {}'.format(len(dataset_train)))
-        print('num images in val_dataset     : {}'.format(len(dataset_val)))
-        print('-------------------------------------')
+        logging.info('\n-----Initial Dataset Information-----')
+        logging.info('num images in train_dataset   : {}'.format(len(dataset_train)))
+        logging.info('num images in val_dataset     : {}'.format(len(dataset_val)))
+        logging.info('Size of train dataloader      : {}'.format(len(train_loader)))
+        logging.info('Size of validation dataloader      : {}'.format(len(val_loader)))
+        logging.info('-------------------------------------')
 
-        a,b,c = dataset_train[0]
-        print('\nwe are working with \n Image name: {} and \nImages shape: {} and \nTarget shape: {}'.format(c, a.shape, b))
-
+        a,b,c,label_weight = dataset_train[0]
+        print('\nwe are working with \n Image name: {} and \nImages shape: {} and \nTarget shape: {} and label weights'.format(c, a.shape, b,label_weight))
+        label_weight=torch.as_tensor(label_weight, dtype=torch.float)
         #dataiter = iter(train_loader)
         #images, labels,name = dataiter.next()
         #print("sampe :",images.shape)
@@ -278,6 +280,7 @@ def main(args):
 
         # Step4. Binary Croos Entropy loss for multi-label classification
 
+        #criterion = nn.BCEWithLogitsLoss(pos_weight=label_weight).to(device)
         criterion = nn.BCEWithLogitsLoss().to(device)
 
         #Delete:
@@ -297,7 +300,6 @@ def main(args):
 
         writer = SummaryWriter(args.ckp_dir)
         for epoch in range(args.epochs):
-            #writer.add_scalar('train/learning_rate', lr_scheduler.get_lr()[0], epoch)
             # Step6. Train the epoch
             train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict)
             #lr_scheduler.step()
@@ -355,7 +357,7 @@ def main(args):
     logging.info('losses At the end {}'.format(losses_dict))
 
     #plot and save graph
-    if not args.test: # Training flow
+    if not args.test: # Training flowf
         plt.plot(losses_dict['epoch_train_loss'])
         plt.plot(losses_dict['epoch_val_loss'])
         plt.title('Model Losses')
@@ -393,7 +395,6 @@ def parse_args():
     parser.add_argument('--print-freq', default=20, type=int, help='print frequency')
     parser.add_argument('--ckp-dir', default='checkpoint', help='path to save checkpoint')
    	# Additional arguments
-    parser.add_argument('--drop', '--dropout', default=0, help='Dropout ratio')
     parser.add_argument('--test-path', help='test dataset path')
     parser.add_argument('--test-model',default='', help='path to latest checkpoint to run test on (default: none)')
     parser.add_argument('-t','--test', default=False, help = 'Set to true when running test')
