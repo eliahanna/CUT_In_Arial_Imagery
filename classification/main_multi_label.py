@@ -84,7 +84,8 @@ def hamming_score(y_true, y_pred, normalize=True, sample_weight=None):
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer,logging,losses_dict):
     model.train()
     epoch_loss = 0
-    for idx, (image, target,name,pos_weight) in enumerate(data_loader):
+    accuracy_score = 0
+    for idx, (image, target,name) in enumerate(data_loader):
         #print("Target ",target)
         # Move tensors to the configured device
         image, target = image.to(device), target.to(device)
@@ -101,7 +102,9 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
         # Updating parameters
         optimizer.step()
         epoch_loss = epoch_loss + loss.item()
-
+        pred_opt = torch.sigmoid(output)
+        pred = (pred_opt > .5).int()
+        accuracy_score = accuracy_score + hamming_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
         if idx % print_freq == 0:
             logging.info('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, idx * len(image), len(data_loader.dataset), 100. * idx / len(data_loader), loss.item()))
@@ -109,11 +112,13 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
 
     epoch_loss /= len(data_loader.dataset)/data_loader.batch_size
     losses_dict['epoch_train_loss'].append(epoch_loss)
+    accuracy_score /= len(data_loader)
+    losses_dict['training_accuracy'].append(round(accuracy_score,4))
     #logging.info(epoch_loss)
 
     #writer.add_scalar('Train/epoch loss', epoch_loss, epoch)
 
-def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses_dict):
+def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses_dict,validate=0):
     model.eval()
     loss = 0
     accuracy_score = 0
@@ -123,14 +128,13 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
     checkDf = pd.DataFrame(columns = ['Image', 'Actual','Prediction','Matching'])
     # In test phase, we don't need to compute gradients (for memory efficiency)
     with torch.no_grad():
-        for idx, (image, target,name,pos_weight) in enumerate(data_loader):
+        for idx, (image, target,name) in enumerate(data_loader):
             image = image.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True)
             output = model(image)
             pred_opt = torch.sigmoid(output)
             loss += criterion(output, target).item()
 
-            #pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             pred = (pred_opt > .5).int()
 
             # Put everything in a dataframe for display
@@ -162,15 +166,17 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
         logging.info('\nTest set: Average loss: {:.4f}, Accuracy: {}, Precision: {} , Recall: {} , F1 score: {} \n'.format(
             loss, round(accuracy_score,4),round(precision,4),round(recall,4),round(f1,4)))
 
-        losses_dict['epoch_val_loss'].append(loss)
-        losses_dict['validation_accuracy'].append(round(accuracy_score,4))
-        losses_dict['validation_F1_score'].append((round(f1,4)))
-        writer.add_scalar('test/loss', loss,  epoch)
-        writer.add_scalar('test/accuracy', accuracy_score, epoch)
-        writer.add_scalar('test/Precision', precision, epoch )
-        writer.add_scalar('test/Recall', recall,epoch)
-        writer.add_scalar('test/F1 score', f1 ,epoch)
-        #logging.info(losses_dict)
+        if validate==1:
+            losses_dict['epoch_val_loss'].append(loss)
+            losses_dict['validation_accuracy'].append(round(accuracy_score,4))
+            losses_dict['validation_F1_score'].append((round(f1,4)))
+
+        #writer.add_scalar('test/loss', loss,  epoch)
+        #writer.add_scalar('test/accuracy', accuracy_score, epoch)
+        #writer.add_scalar('test/Precision', precision, epoch )
+        #writer.add_scalar('test/Recall', recall,epoch)
+        #writer.add_scalar('test/F1 score', f1 ,epoch)
+
 
 #load the data as image and multiLabel
 def load_data(traindir, valdir,augmentation=False):
@@ -187,7 +193,7 @@ def load_data(traindir, valdir,augmentation=False):
             transforms.RandomVerticalFlip(0.5),
             #transforms.RandomGrayscale(0.2),
             transforms.RandomRotation(40),
-            #transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0, hue=0),
+            transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0, hue=0),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -244,9 +250,9 @@ def main(args):
         logging.info('Size of validation dataloader      : {}'.format(len(val_loader)))
         logging.info('-------------------------------------')
 
-        a,b,c,label_weight = dataset_train[0]
-        print('\nwe are working with \n Image name: {} and \nImages shape: {} and \nTarget shape: {} and label weights'.format(c, a.shape, b,label_weight))
-        label_weight=torch.as_tensor(label_weight, dtype=torch.float)
+        a,b,c = dataset_train[0]
+        print('\nwe are working with \n Image name: {} and \nImages shape: {} and \nTarget shape: {} '.format(c, a.shape, b))
+#        label_weight=torch.as_tensor(label_weight, dtype=torch.float).to(device)
         #dataiter = iter(train_loader)
         #images, labels,name = dataiter.next()
         #print("sampe :",images.shape)
@@ -283,9 +289,6 @@ def main(args):
         #criterion = nn.BCEWithLogitsLoss(pos_weight=label_weight).to(device)
         criterion = nn.BCEWithLogitsLoss().to(device)
 
-        #Delete:
-        #params_to_update = model.parameters()
-        #print("Params to learn:" ,params_to_update)
 
         for name,param in model.named_parameters():
             if param.requires_grad == True:
@@ -304,7 +307,7 @@ def main(args):
             train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict)
             #lr_scheduler.step()
             # Step7. Validate after each epoch
-            evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict)
+            evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict,1)
             # Step8. Save the model after 10 epoch
             if epoch % 10 == 9:
                 torch.save(model.state_dict(), os.path.join(args.ckp_dir, "cls_epoch_{}.pth".format(epoch)))
@@ -345,7 +348,7 @@ def main(args):
         #Loss and optimizer
         criterion = nn.BCEWithLogitsLoss().to(device)
         #optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
         evaluate(1, model, criterion, test_loader, device, writer,logging,losses_dict)
         writer.close()
 
@@ -366,12 +369,12 @@ def main(args):
         plt.legend(['Train', 'Validation'], loc='upper left')
         plt.savefig(args.ckp_dir+'/losses.png', bbox_inches='tight')
 
+        plt.plot(losses_dict['training_accuracy'])
         plt.plot(losses_dict['validation_accuracy'])
-        plt.plot(losses_dict['validation_F1_score'])
         plt.title('Model Evaluation')
         plt.ylabel('Accuracy')
         plt.xlabel('Epoch')
-        plt.legend(['Accuracy', 'F1 score'], loc='upper left')
+        plt.legend(['Train', 'Validation'], loc='upper left')
         plt.savefig(args.ckp_dir+'/accuracy.png', bbox_inches='tight')
 
 

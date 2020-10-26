@@ -278,8 +278,6 @@ def make_multi_dataset(dir, class_to_idx, extensions):
 
     valCount= df.apply( lambda s : s.value_counts().get(key=1,default=0 ) , axis=0)
     sample_counts = valCount[2:].to_numpy()
-
-
     weight = 1. / (sample_counts)
     class_to_idx_keys=sorted(class_to_idx.keys())
     class_to_weights = {class_to_idx_keys[i]: weight[i] for i in range(len(class_to_idx_keys))}
@@ -291,28 +289,15 @@ def make_multi_dataset(dir, class_to_idx, extensions):
 
 
     sample_weights = df['Weights']
-
+    #print(sample_weights)
     df = df.drop(['Weights'], axis = 1)
-    #Calculate the loss weights
-    pos_weights = calculate_pos_weights(sample_counts,len(df))
-    print("sample_counts ",sample_counts)
-    print("length of the dataset ",len(df))
-    print("pos_weights ",pos_weights)
     #print(df.iloc[:,1:])
     time_elapsed = time.time() - script_start_time
     print("Time is dataloader: {} sec".format(round(time_elapsed)))
     m, s = divmod(time_elapsed, 60)
     h, m = divmod(m, 60)
     print('Time taken by the dataset to load is : {} h {} m !'.format(int(h), int(m)))
-    return df,sample_weights.to_numpy(),pos_weights
-
-def calculate_pos_weights(class_counts,dataset_len):
-    pos_weights = np.ones_like(class_counts,dtype=float)
-    neg_counts = [dataset_len-pos_count for pos_count in class_counts]
-    for cdx, (pos_count, neg_count) in enumerate(zip(class_counts,  neg_counts)):
-        pos_weights[cdx] = neg_count / (float(pos_count) + 1e-5)
-
-    return pos_weights
+    return df,sample_weights.to_numpy()
 
 # This dataloader is used for multi label classification
 class ImageMultiLabelDataset(data.Dataset):
@@ -357,7 +342,7 @@ class ImageMultiLabelDataset(data.Dataset):
         print("classes ",classes)
         print("class_to_idx ",class_to_idx)
 
-        samples,sample_weights,pos_weights = make_multi_dataset(root, class_to_idx, extensions)
+        samples,sample_weights = make_multi_dataset(root, class_to_idx, extensions)
         if len(samples) == 0:
             raise(RuntimeError("Found 0 files in subfolders of: " + root + "\n"
                                                                            "Supported extensions are: " + ",".join(extensions)))
@@ -370,8 +355,7 @@ class ImageMultiLabelDataset(data.Dataset):
         self.class_to_idx = class_to_idx
         self.samples = samples
         self.sample_weights = sample_weights
-        self.label_weights=pos_weights
-
+        print("The shape of the dataset: ",samples.shape)
         #self.targets = [s[1] for s in samples]
 
         self.transform = transform
@@ -418,7 +402,7 @@ class ImageMultiLabelDataset(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return sample, target ,name,self.label_weights
+        return sample, target ,name
 
     def __len__(self):
         return len(self.samples)
@@ -463,7 +447,7 @@ if __name__ == "__main__":
     #}
     dataset_train = ImageMultiLabelDataset(root=traindir,transform=None)
     sample_weights = dataset_train.sample_weights
-    #print("sample Weoghts: ",sample_weights)
+    print("sample Weoghts: ",sample_weights)
 
     samples_weights = torch.tensor(sample_weights)
     sampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=False)
