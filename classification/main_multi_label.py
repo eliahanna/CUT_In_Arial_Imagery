@@ -114,6 +114,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
     losses_dict['epoch_train_loss'].append(epoch_loss)
     accuracy_score /= len(data_loader)
     losses_dict['training_accuracy'].append(round(accuracy_score,4))
+    logging.info('Epoch train loss is {} and Train accuracy: {}'.format(epoch_loss, round(accuracy_score,4)))
     #logging.info(epoch_loss)
 
     #writer.add_scalar('Train/epoch loss', epoch_loss, epoch)
@@ -258,23 +259,31 @@ def main(args):
         #print("sampe :",images.shape)
 
         # Step3. Instantiate the model
-        if args.model == 'vgg':
+        if args.model == 'vgg16':
             #VGG16
+            logging.info('Running model vgg16')
             model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
             # change the last linear layer
             num_features = model.classifier[6].in_features
             features = list(model.classifier.children())[:-1] # Remove last layer
             features.extend([nn.Linear(num_features, args.num_classes)]) # Add our layer with 4 outputs
             model.classifier = nn.Sequential(*features) # Replace the model classifier
-        else:
+        elif args.model == 'resnet50':
             #Resnet 50
-            model = models.resnet18(pretrained=True)
+            logging.info('Running model resnet50')
+            model = models.resnet50(pretrained=True)
             num_ftrs = model.fc.in_features
-            #model.fc = nn.Linear(num_ftrs, args.num_classes)
-            model.fc = nn.Sequential(
-                nn.Dropout(0.5),
-                nn.Linear(num_ftrs, args.num_classes)
-            )
+            model.fc = nn.Linear(num_ftrs, args.num_classes)
+            #model.fc = nn.Sequential(
+            #    nn.Dropout(0.5),
+            #    nn.Linear(num_ftrs, args.num_classes)
+            #)
+        elif args.model == 'resnet101':
+            #Resnet 50
+            model = models.resnet101(pretrained=True)
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Linear(num_ftrs, args.num_classes)
+
 
         print(model)
         #print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
@@ -296,10 +305,11 @@ def main(args):
 
         # Step5. Adam optimizer and lr scheduler
         #optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=0.4)
+        #optimizer = optim.RMSprop(model.parameters(), lr = args.lr, alpha = 0.9)
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
         # Let's not do the learning rate scheduler now
-        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
 
         writer = SummaryWriter(args.ckp_dir)
         for epoch in range(args.epochs):
@@ -324,7 +334,7 @@ def main(args):
         test_loader = DataLoader(dataset_test, batch_size=args.batch_size, shuffle=True)
         #Load model
         #model = get_model(args.model, args.num_classes, pretrained=args.pretrained)
-        if args.model == 'vgg':
+        if args.model == 'vgg16':
             #VGG16
             model = models.vgg16_bn(pretrained=True) # pretrained = False bydefault
             # change the last linear layer
@@ -332,15 +342,21 @@ def main(args):
             features = list(model.classifier.children())[:-1] # Remove last layer
             features.extend([nn.Linear(num_features, args.num_classes)]) # Add our layer with 4 outputs
             model.classifier = nn.Sequential(*features) # Replace the model classifier
-        else:
+        elif args.model == 'resnet50':
             #Resnet 50
-            model = models.resnet18(pretrained=True)
+            model = models.resnet50(pretrained=True)
             num_ftrs = model.fc.in_features
-            #model.fc = nn.Linear(num_ftrs, args.num_classes)
-            model.fc = nn.Sequential(
-                nn.Dropout(0.5),
-                nn.Linear(num_ftrs, args.num_classes)
-            )
+            model.fc = nn.Linear(num_ftrs, args.num_classes)
+            #model.fc = nn.Sequential(
+            #    nn.Dropout(0.5),
+            #    nn.Linear(num_ftrs, args.num_classes)
+            #)
+        elif args.model == 'resnet101':
+            #Resnet 50
+            model = models.resnet101(pretrained=True)
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Linear(num_ftrs, args.num_classes)
+
 
         model.to(device)
 
@@ -348,6 +364,7 @@ def main(args):
         #Loss and optimizer
         criterion = nn.BCEWithLogitsLoss().to(device)
         #optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        #optimizer = optim.RMSprop(model.parameters(), lr = args.lr, alpha = 0.9)
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
         evaluate(1, model, criterion, test_loader, device, writer,logging,losses_dict)
         writer.close()
@@ -368,6 +385,7 @@ def main(args):
         plt.xlabel('Epoch')
         plt.legend(['Train', 'Validation'], loc='upper left')
         plt.savefig(args.ckp_dir+'/losses.png', bbox_inches='tight')
+        plt.close()
 
         plt.plot(losses_dict['training_accuracy'])
         plt.plot(losses_dict['validation_accuracy'])
@@ -376,7 +394,7 @@ def main(args):
         plt.xlabel('Epoch')
         plt.legend(['Train', 'Validation'], loc='upper left')
         plt.savefig(args.ckp_dir+'/accuracy.png', bbox_inches='tight')
-
+        plt.close()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Domain Adaptation Classification Training')
