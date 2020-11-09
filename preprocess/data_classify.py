@@ -61,9 +61,9 @@ def get_data_stats(all_folders,categories,config,classids,writepath):
             data = json.load(f)
             for label in data['labels']:
                 filepart = file_with_path.split('_')[2]
-                if filepart[4:6] == '01' or filepart[4:6] == '12':
+                if filepart[4:6] == '01' or filepart[4:6] == '12' or filepart[4:6] == '02':
                     record_type = 'winter'
-                elif filepart[4:6] == '06' or filepart[4:6] == '07':
+                elif filepart[4:6] == '06' or filepart[4:6] == '07' or filepart[4:6] == '08':
                     record_type = 'summer'
                 else:
                     record_type = 'other'
@@ -98,17 +98,17 @@ def get_data_stats(all_folders,categories,config,classids,writepath):
     new_df = df.groupby(['category' , 'label','record_type']).size().reset_index(name='counts') 
     selected_df = pd.DataFrame(selected_records, columns=['file' , 'folder' , 'category', 'label' , 'classid'])
     print ('selected:' , cnt_selected)
+    select_record_winter = list(set(select_record_winter))
+    select_record_summer = list(set(select_record_summer))
     return (df,new_df, cnt, cnt_selected,select_record_winter,select_record_summer,selected_df)
 
 def get_splits(select_winter, select_summer,writepath,selected_df):
     print (selected_df.classid.unique())
     cnt_winter = len(select_winter)
     cnt_summer = len(select_summer)
-    #winter_split = math.floor (cnt_winter/3)
-    #summer_split = math.floor(cnt_summer/3)
-    cut_trainA = math.floor (cnt_winter/20)
-    cut_trainB = math.floor (cnt_summer/20)
-    cut_test = math.floor (cnt_winter/3)
+    cut_trainA = math.floor (cnt_summer/100)
+    cut_trainB = math.floor (cnt_winter/100)
+    cut_test = math.floor (2 * cnt_winter/3)
     model_train = math.floor ( 3 * cnt_summer/4)
     model_test = cnt_summer -(cut_trainA + model_train)
     model_validate = cnt_winter - (cut_trainB + cut_test)
@@ -116,7 +116,7 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
     print ('Total Winter Images: ' , cnt_winter)
     print ('CUT Train A:' , cut_trainA)
     print ('CUT Train B:' , cut_trainB)
-    print ('CUT Test :' , cut_test)
+    print ('CUT Predict B :' , cut_test)
     print ( 'Model Train :' , model_train)
     print ('Model Test :' , model_test)
     print ('Model Validate :' , model_validate)
@@ -129,7 +129,7 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
     model = writepath + '/model'
     cuttrainA = writepath + '/CUT/dataset/trainA'
     cuttrainB = writepath + '/CUT/dataset/trainB'
-    cuttest = writepath + '/CUT/test'
+    #cuttest = writepath + '/CUT/test'
     modeltrain = writepath + '/model/train'
     modeltest = writepath + '/model/test'
     modelvalidate = writepath + '/model/validate'
@@ -144,7 +144,7 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
     os.mkdir(cutdataset)
     os.mkdir(cuttrainA)
     os.mkdir(cuttrainB)
-    os.mkdir(cuttest)
+    #os.mkdir(cuttest)
     os.mkdir(modeltrain)
     os.mkdir(modeltest)
     os.mkdir(modelvalidate)
@@ -167,22 +167,26 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
         source_file = source_dir + '/' + select_summer[i] + '.jpg'
         if cnt < cut_trainA:
             target = cuttrainA + '/' + select_summer[i] + '.jpg'
+            shutil.copyfile(source_file , target)
         elif cnt < (cut_trainA + model_train):
             #print (select_summer[i])
             class_list = selected_df[selected_df['folder'] == select_summer[i]]['classid'].values.tolist() 
             for class_value in class_list:
                 target = modeltrain + '/' + class_value + '/' + select_summer[i] + '.jpg'
                 shutil.copyfile(source_file , target)
-            target = cutprtrainA + '/' + select_summer[i] + '.jpg'     
+            target = cutprtrainA + '/' + select_summer[i] + '.jpg'
+            shutil.copyfile(source_file , target)
         else:
             class_list = selected_df[selected_df['folder'] == select_summer[i]]['classid'].values.tolist()
             for class_value in class_list:
                 target = modeltest + '/'+ class_value + '/'  + select_summer[i] + '.jpg'
-        shutil.copyfile(source_file , target)
+                shutil.copyfile(source_file , target)
         if cnt == cut_trainA:
             print ("Completed CUT trainA generation")
         elif cnt == (cut_trainA + model_train):
-            print ("Completed model train generation")    
+            print ("Completed model train generation")
+        if (cnt  % 2000) == 0 :
+            print ('Summer Generation' , cnt)    
         cnt = cnt + 1    
     print ("Completed model test generation")
     cnt = 0
@@ -190,19 +194,25 @@ def get_splits(select_winter, select_summer,writepath,selected_df):
         source_file = source_dir + '/' + select_winter[i] + '.jpg'
         if cnt < cut_trainB:
             target = cuttrainB + '/' + select_winter[i] + '.jpg'
-        elif cnt < (cut_trainB + cut_test):
-            target = cuttest + '/' + select_winter[i] + '.jpg'
             shutil.copyfile(source_file , target)
+     #       target = cutprtrainB + '/' + select_winter[i] + '.jpg'
+     #       shutil.copyfile(source_file , target)
+        elif cnt < (cut_trainB + cut_test):
+            #target = cuttest + '/' + select_winter[i] + '.jpg'
+            #shutil.copyfile(source_file , target)
             target = cutprtrainB + '/' + select_winter[i] + '.jpg'
+            shutil.copyfile(source_file , target)
         else:
             class_list = selected_df[selected_df['folder'] == select_winter[i]]['classid'].values.tolist()
             for class_value in class_list:
                 target = modelvalidate + '/'+ class_value + '/'  + select_winter[i] + '.jpg'
-        shutil.copyfile(source_file , target)
+                shutil.copyfile(source_file , target)
         if cnt == cut_trainB:
             print ("Completed CUT trainB generation")
         elif cnt == (cut_trainB + cut_test):
             print ("Completed CUT Test generation")
+        if (cnt  % 2000) == 0 :
+            print ('Winter Data Generation' , cnt)     
         cnt = cnt + 1    
     print ("Completed model validate generation")
     print(cnt)
@@ -247,7 +257,8 @@ print(len(selected_df))
 selected_df.to_csv(outselected,index=False)
 selected_df_new = selected_df[['file' , 'classid']]
 selected_df_new['classid'] = selected_df_new['classid'].astype(int)
-flat_df = selected_df_new.groupby(['file']).agg(lambda x: x.tolist())
+#flat_df = selected_df_new.groupby(['file']).agg(lambda x: x.tolist())
+flat_df = selected_df_new.groupby(['file']).agg(lambda x: list(dict.fromkeys(x.tolist())))
 print(flat_df)
 flat_df.to_csv(flatselected)
 print("Exectuion Time :  %s seconds " % (time.time() - start_time))
