@@ -9,10 +9,13 @@ import shutil
 import os
 outputpath=sys.argv[2]
 sourcepath = sys.argv[1]
-summer_array = ['06','07','08']
-winter_array = ['12' , '01' , '02']
+#summer_array = ['06','07','08']
+#winter_array = ['12' , '01' , '02']
 with open("dataselect_config.json") as f:
         config = json.load(f)
+
+summer_array = config['domainA']
+winter_array = config['domainB']
 
 if config['class_type'] == 'category':
     categoryfile='category_label_all.json'
@@ -182,7 +185,7 @@ else:
 validate = list(set(validate))
 print('Images in model validate:' , len(validate) , ', Domain:', list(set(domain)) , ' , ', label_val_text)
 
-cuttrainA_folder = outputpath + 'CUT/dataset/trainA'
+cuttrainA_folder = outputpath + '/CUT/dataset/trainA'
 all_folders = listdir(cuttrainA_folder)
 cuttrainA = []
 domain = []
@@ -191,7 +194,7 @@ for folder in all_folders:
     cuttrainA.append(folder)
 print('Images in CUT trainA:' , len(cuttrainA) , ', Domain:', list(set(domain)))  
 
-cuttrainB_folder = outputpath + 'CUT/dataset/trainB'
+cuttrainB_folder = outputpath + '/CUT/dataset/trainB'
 all_folders = listdir(cuttrainB_folder)
 cuttrainB = []
 domain = []
@@ -200,7 +203,7 @@ for folder in all_folders:
     domain.append(folder.split('_')[2][4:6])
 print('Images in CUT trainB:' , len(cuttrainB) , ', Domain:', list(set(domain)))
 
-cuttestA_folder = outputpath + 'CUT/predict/dataset/trainA'
+cuttestA_folder = outputpath + '/CUT/predict/dataset/trainA'
 all_folders = listdir(cuttestA_folder)
 cuttestA = []
 domain = []
@@ -209,7 +212,7 @@ for folder in all_folders:
     domain.append(folder.split('_')[2][4:6])
 print('Images in CUT predict trainA:' , len(cuttestA) , ', Domain:', list(set(domain)))
 
-cuttestB_folder = outputpath + 'CUT/predict/dataset/trainB'
+cuttestB_folder = outputpath + '/CUT/predict/dataset/trainB'
 all_folders = listdir(cuttestB_folder)
 cuttestB = []
 domain = []

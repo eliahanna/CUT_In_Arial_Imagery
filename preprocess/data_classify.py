@@ -55,15 +55,19 @@ def get_data_stats(all_folders,categories,config,classids,writepath):
     select_record_summer=[]
     select_record_winter=[]
     selected_records=[]
+    domainA = config['domainA']
+    domainB = config['domainB']
     for folder in all_folders:
         file_with_path = folderpath + '/' + folder + '/' + folder + '_labels_metadata.json'
         with open(file_with_path) as f:
             data = json.load(f)
             for label in data['labels']:
                 filepart = file_with_path.split('_')[2]
-                if filepart[4:6] == '01' or filepart[4:6] == '12' or filepart[4:6] == '02':
+                #if filepart[4:6] == '01' or filepart[4:6] == '12' or filepart[4:6] == '02':
+                if filepart[4:6] in domainB:
                     record_type = 'winter'
-                elif filepart[4:6] == '06' or filepart[4:6] == '07' or filepart[4:6] == '08':
+                #elif filepart[4:6] == '06' or filepart[4:6] == '07' or filepart[4:6] == '08':
+                elif filepart[4:6] in domainA: 
                     record_type = 'summer'
                 else:
                     record_type = 'other'
