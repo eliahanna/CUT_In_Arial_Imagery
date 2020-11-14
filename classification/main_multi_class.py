@@ -112,7 +112,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
                     loss, round(accuracy_score,4)))
         if validate==1:
             losses_dict['epoch_val_loss'].append(loss)
-            losses_dict['validation_accuracy'].append(round(accuracy_score),4)
+            losses_dict['validation_accuracy'].append(round(accuracy_score,4))
 
 
         #writer.add_scalar('test/loss', loss,  epoch)
