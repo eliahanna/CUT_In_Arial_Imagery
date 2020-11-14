@@ -17,6 +17,7 @@ from torch.utils.data import WeightedRandomSampler
 import collections
 import logging
 import matplotlib.pyplot as plt
+from efficientnet_pytorch import EfficientNet
 
 
 # define a function to count the total number of trainable parameters
@@ -81,34 +82,57 @@ def hamming_score(y_true, y_pred, normalize=True, sample_weight=None):
         acc_list.append(tmp_a)
     return np.mean(acc_list)
 
-def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer,logging,losses_dict):
+def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer,logging,losses_dict,is_inception=False):
     model.train()
     epoch_loss = 0
     accuracy_score = 0
+    checkDf = pd.DataFrame(columns = ['Image', 'Actual','Prediction','Matching'])
     for idx, (image, target,name) in enumerate(data_loader):
-        #print("Target ",target)
+        #logging.info("Target {}".format(target))
         # Move tensors to the configured device
         image, target = image.to(device), target.to(device)
         # Clearing the last error gradient
         optimizer.zero_grad()
-        # Forward pass
-        output = model(image)
-        #pred_opt = torch.sigmoid(output)
-        #print("pred_opt ",pred_opt)
-        # Calculate Loss
-        loss = criterion(output, target)
+
+        if is_inception:
+            output, aux_output = model(image)
+            loss1 = criterion(output, target)
+            loss2 = criterion(aux_output, target)
+            loss = loss1 + 0.4*loss2
+        else:
+            # Forward pass
+            output = model(image)
+            # Calculate Loss
+            loss = criterion(output, target)
+
         # Backward and optimize
         loss.backward()
         # Updating parameters
         optimizer.step()
         epoch_loss = epoch_loss + loss.item()
         pred_opt = torch.sigmoid(output)
+        #logging.info("Prediction {}".format(pred_opt))
         pred = (pred_opt > .5).int()
+
+        # Put everything in a dataframe for display
+        match = np.all(target.int().to(torch.device("cpu")).numpy()==pred.to(torch.device("cpu")).numpy() , axis=1)
+        dicDf = {'Image': name,
+                 'Actual': target.int().to(torch.device("cpu")).detach().numpy().tolist(),
+                 'Prediction': pred_opt.to(torch.device("cpu")).detach().numpy().tolist(),
+                 'Matching':match
+                 }
+        epochDf = pd.DataFrame(dicDf, columns = ['Image', 'Actual','Prediction','Matching'])
+        checkDf = pd.concat([checkDf, epochDf], axis =0,ignore_index=True, sort=False)
+
         accuracy_score = accuracy_score + hamming_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
         if idx % print_freq == 0:
             logging.info('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, idx * len(image), len(data_loader.dataset), 100. * idx / len(data_loader), loss.item()))
             writer.add_scalar('Train/loss', loss.item(), len(data_loader) * epoch + idx)
+
+    if epoch % 10 == 9 :
+        filePath=args.ckp_dir+'/training_result_'+str(epoch)+'.csv'
+        checkDf.to_csv(filePath)
 
     epoch_loss /= len(data_loader.dataset)/data_loader.batch_size
     losses_dict['epoch_train_loss'].append(epoch_loss)
@@ -153,7 +177,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
             recall = recall + recall_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
             f1= f1 + f1_score(target.int().to(torch.device("cpu")).numpy(), pred.to(torch.device("cpu")).numpy())
 
-        if epoch % 10 == 9:
+        if epoch % 10 == 9 or epoch % 10 == 5:
             filePath=args.ckp_dir+'/validation_result_'+str(epoch)+'.csv'
             checkDf.to_csv(filePath)
         #print("Number of batches : ",len(data_loader) , " and also : ",data_loader.batch_size)
@@ -242,6 +266,7 @@ def main(args):
         weightedsampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=True)
 
         train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=False,sampler=weightedsampler)
+        #train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
         val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
 
         logging.info('\n-----Initial Dataset Information-----')
@@ -257,8 +282,10 @@ def main(args):
         #dataiter = iter(train_loader)
         #images, labels,name = dataiter.next()
         #print("sampe :",images.shape)
-
+        is_inception=False
         # Step3. Instantiate the model
+        logging.info('Running model {} '.format(args.model))
+
         if args.model == 'vgg16':
             #VGG16
             logging.info('Running model vgg16')
@@ -273,20 +300,34 @@ def main(args):
             logging.info('Running model resnet50')
             model = models.resnet50(pretrained=True)
             num_ftrs = model.fc.in_features
-            model.fc = nn.Linear(num_ftrs, args.num_classes)
-            #model.fc = nn.Sequential(
-            #    nn.Dropout(0.5),
-            #    nn.Linear(num_ftrs, args.num_classes)
-            #)
+            #model.fc = nn.Linear(num_ftrs, args.num_classes)
+            model.fc = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(num_ftrs, args.num_classes)
+            )
         elif args.model == 'resnet101':
-            #Resnet 50
+            logging.info('Running model resnet101')
+            #Resnet 101
             model = models.resnet101(pretrained=True)
             num_ftrs = model.fc.in_features
             model.fc = nn.Linear(num_ftrs, args.num_classes)
+        elif args.model == 'efficientnet':
+            logging.info('Running model efficientnet')
+            model = EfficientNet.from_pretrained('efficientnet-b1', num_classes=args.num_classes)
+        elif args.model == 'inception':
+            logging.info('Running model inception')
+            model = models.inception_v3(pretrained=True)
+            # Handle the auxilary net
+            num_ftrs_aux = model.AuxLogits.fc.in_features
+            model.AuxLogits.fc = nn.Linear(num_ftrs_aux, args.num_classes)
+            # Handle the primary net
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Linear(num_ftrs,args.num_classes)
+            is_inception=True
 
+        logging.info(model)
 
-        print(model)
-        #print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
+        #logging.info(summary(model, input_size=(3, 299, 299)))
         model.to(device)
         if args.resume:
             model.load_state_dict(torch.load(args.resume, map_location=device))
@@ -304,17 +345,17 @@ def main(args):
                 print("\t",name)
 
         # Step5. Adam optimizer and lr scheduler
-        #optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=0.4)
+        #optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=1e-5)
         #optimizer = optim.RMSprop(model.parameters(), lr = args.lr, alpha = 0.9)
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
         # Let's not do the learning rate scheduler now
-        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
 
         writer = SummaryWriter(args.ckp_dir)
         for epoch in range(args.epochs):
             # Step6. Train the epoch
-            train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict)
+            train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict,is_inception)
             #lr_scheduler.step()
             # Step7. Validate after each epoch
             evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict,1)
@@ -356,7 +397,16 @@ def main(args):
             model = models.resnet101(pretrained=True)
             num_ftrs = model.fc.in_features
             model.fc = nn.Linear(num_ftrs, args.num_classes)
-
+        elif args.model == 'efficientnet':
+            model = EfficientNet.from_pretrained('efficientnet-b1', num_classes=args.num_classes)
+        elif args.model == 'inception':
+            model = models.inception_v3(pretrained=True)
+            # Handle the auxilary net
+            num_ftrs = model.AuxLogits.fc.in_features
+            model.AuxLogits.fc = nn.Linear(num_ftrs, args.num_classes)
+            # Handle the primary net
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Linear(num_ftrs,args.num_classes)
 
         model.to(device)
 
