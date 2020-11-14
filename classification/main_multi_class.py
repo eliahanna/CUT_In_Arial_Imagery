@@ -18,6 +18,7 @@ import collections
 import logging
 import matplotlib.pyplot as plt
 from efficientnet_pytorch import EfficientNet
+import wandb
 
 
 # define a function to count the total number of trainable parameters
@@ -56,7 +57,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
         pred = np.squeeze(pred, axis = 1)
         correct += pred.eq(target.view_as(pred)).sum().item()
         #logging.info("Count of Correct Prediction {}".format(correct))
-        
+
         if idx % print_freq == 0:
             logging.info('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, idx * len(image), len(data_loader.dataset), 100. * idx / len(data_loader), loss.item()))
