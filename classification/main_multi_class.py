@@ -77,6 +77,11 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
 
     correct=0
     f1 =0
+    classes= ('Arable Land','Pastures','Perm Crop','Heterogenious Agricultural')
+    #classes_dict= {0:'Arable Land',1:'Pastures',2:'Perm Crop',3:'Heterogenious Agricultural'}
+    class_correct = list(0. for i in range(len(classes)))
+    class_total = list(0. for i in range(len(classes)))
+
     checkDf = pd.DataFrame(columns = ['Image', 'Actual','Prediction','Matching'])
     # In test phase, we don't need to compute gradients (for memory efficiency)
     with torch.no_grad():
@@ -100,6 +105,10 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
             epochDf = pd.DataFrame(dicDf, columns = ['Image', 'Actual','Prediction','Matching'])
             checkDf = pd.concat([checkDf, epochDf], axis =0,ignore_index=True, sort=False)
 
+            for i in range(len(target)):
+                label = target[i]
+                class_correct[label] += match[i].item()
+                class_total[label] += 1
 
         if epoch % 10 == 9:
             filePath=args.ckp_dir+'/validation_result_'+str(epoch)+'.csv'
@@ -115,6 +124,11 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
             losses_dict['validation_accuracy'].append(round(accuracy_score,4))
 
 
+        logging.info('\n-----Validation Accuracy by each label-----')
+        for i in range(len(classes)):
+            logging.info('Accuracy of {} : {} %'.format (
+            classes[i], round(100 * class_correct[i] / class_total[i],2)))
+        logging.info('\n---------------------------------------------')
         #writer.add_scalar('test/loss', loss,  epoch)
         #writer.add_scalar('test/accuracy', accuracy_score, epoch)
         #writer.add_scalar('test/Precision', precision, epoch )
