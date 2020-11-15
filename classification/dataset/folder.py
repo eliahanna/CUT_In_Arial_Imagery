@@ -10,6 +10,8 @@ from PIL import Image
 import numpy as np
 import pandas as pd
 import os, time
+from collections import Counter
+
 
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', 'webp']
 
@@ -93,7 +95,7 @@ def make_dataset(dir, class_to_idx, extensions):
             for fname in sorted(fnames):
                 if has_file_allowed_extension(fname, extensions):
                     path = os.path.join(root, fname)
-                    item = (path, class_to_idx[target])
+                    item = (path, class_to_idx[target],fname)
                     images.append(item)
 
     return images
@@ -131,8 +133,11 @@ class DatasetFolder(data.Dataset):
     """
 
     def __init__(self, root, loader, extensions, classes=None, class_to_idx=None, transform=None, target_transform=None):
+
         if not class_to_idx:
             classes, class_to_idx = self._find_classes(root)
+        print("classes ",classes)
+        print("class_to_idx ",class_to_idx)
         samples = make_dataset(root, class_to_idx, extensions)
         if len(samples) == 0:
             raise(RuntimeError("Found 0 files in subfolders of: " + root + "\n"
@@ -146,7 +151,12 @@ class DatasetFolder(data.Dataset):
         self.class_to_idx = class_to_idx
         self.samples = samples
         self.targets = [s[1] for s in samples]
-
+        sample_count = dict(Counter(self.targets).items())
+        print("sample_count of each labels",sample_count)
+        sample_count.update((x, round(100./y,6)) for x, y in sample_count.items())
+        print("sample_weights",sample_count)
+        self.sample_weights=[sample_count[t] for t in self.targets]
+        #print("samples_weights",self.samples_weights)
         self.transform = transform
         self.target_transform = target_transform
 
@@ -180,14 +190,14 @@ class DatasetFolder(data.Dataset):
         Returns:
             tuple: (sample, target) where target is class_index of the target class.
         """
-        path, target = self.samples[index]
+        path, target,fname = self.samples[index]
         sample = self.loader(path)
         if self.transform is not None:
             sample = self.transform(sample)
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return sample, target
+        return sample, target,fname
 
     def __len__(self):
         return len(self.samples)
@@ -282,14 +292,14 @@ def make_multi_dataset(dir, class_to_idx, extensions):
     class_to_idx_keys=sorted(class_to_idx.keys())
     class_to_weights = {class_to_idx_keys[i]: weight[i] for i in range(len(class_to_idx_keys))}
     df['Weights'] = 0
-    #print("Weights Counts ",weight)
+    print("sample_counts ",sample_counts)
     print ("class_to_weights: ",class_to_weights)
     for col in sorted(class_to_idx.keys()):
         df.loc[df[col] == 1, 'Weights'] = df['Weights'] + class_to_weights[col]
 
 
     sample_weights = df['Weights']
-    #print(sample_weights)
+    print(sample_weights)
     df = df.drop(['Weights'], axis = 1)
     #print(df.iloc[:,1:])
     time_elapsed = time.time() - script_start_time
@@ -425,54 +435,89 @@ if __name__ == "__main__":
     import torchvision.transforms as transforms
     from torch.utils.data import WeightedRandomSampler
     import torch
-    traindir='/Users/adas1/Aditi/personal/school/210/bigearthnet/preprocess/output/model/train'
+    import pandas as pd
+    traindir='/Users/adas1/Aditi/personal/school/210/bigearthnet/preprocess/outputsw_small/test'
 
-    #train_transform = {
-    #    'none' : transforms.Compose([
-    #        transforms.ToPILImage(),
-    #        transforms.ToTensor(),
-  #  #       transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    #    ]),
-    #    'augment' : transforms.Compose([
-    #        transforms.ToPILImage(),
-    #        transforms.RandomHorizontalFlip(0.5),
-     #       transforms.RandomVerticalFlip(0.5),
-     #       transforms.RandomGrayscale(0.5),
-     #       transforms.RandomRotation(40),
+    #dfVal = pd.read_csv ('/Users/adas1/Aditi/personal/school/210/bigearthnet/result/multiclass/resnet18/validation_result_9.csv',usecols=['Actual','Matching'])
+    #dfVal=dfVal.groupby(dfVal.columns.tolist()).size().reset_index().rename(columns={0:'records'})
+    #print("validation_result_9")
+    #print(dfVal)
+
+    #dfVal2 = pd.read_csv ('/Users/adas1/Aditi/personal/school/210/bigearthnet/result/multiclass/resnet18/validation_result_19.csv',usecols=['Actual','Matching'])
+    #dfVal2=dfVal2.groupby(dfVal2.columns.tolist()).size().reset_index().rename(columns={0:'records'})
+    #print("validation_result_19")
+    #print(dfVal2)
+
+    #dfVal3 = pd.read_csv ('/Users/adas1/Aditi/personal/school/210/bigearthnet/result/multiclass/resnet18/validation_result_29.csv',usecols=['Actual','Matching'])
+    #dfVal3=dfVal3.groupby(dfVal3.columns.tolist()).size().reset_index().rename(columns={0:'records'})
+    #print("validation_result_29")
+    #print(dfVal3)
+
+    #dfVal4 = pd.read_csv ('/Users/adas1/Aditi/personal/school/210/bigearthnet/bug/sudipto/resnet50_sw/validation_result_29.csv',usecols=['Actual','Matching'])
+    #dfVal4=dfVal4.groupby(dfVal4.columns.tolist()).size().reset_index().rename(columns={0:'records'})
+    #print("validation_result_29")
+    #print(dfVal4)
+
+    #dfVal5 = pd.read_csv ('/Users/adas1/Aditi/personal/school/210/bigearthnet/bug/validation_result_16.csv',usecols=['Actual','Matching'])
+    #dfVal5=dfVal5.groupby(dfVal5.columns.tolist()).size().reset_index().rename(columns={0:'records'})
+    #print("validation_result_16")
+    #print(dfVal5)
+
+    train_transform = {
+        'none' : transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ]),
+        'augment' : transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.RandomVerticalFlip(0.5),
+            transforms.RandomGrayscale(0.5),
+            transforms.RandomRotation(40),
             #transforms.Grayscale(num_output_channels=3),
-    #        transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.1, hue=0),
-     #       transforms.ToTensor(),
-            #          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    #    ])
-    #}
-    dataset_train = ImageMultiLabelDataset(root=traindir,transform=None)
-    sample_weights = dataset_train.sample_weights
-    print("sample Weoghts: ",sample_weights)
+            transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.1, hue=0),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+    }
+    #dataset_train = ImageMultiLabelDataset(root=traindir,transform=train_transform['none'])
+    dataset_train = ImageFolder(root=traindir,transform=train_transform['none'])
+    #sample_weights = dataset_train.sample_weights
+    #print("sample Weoghts: ",sample_weights)
 
-    samples_weights = torch.tensor(sample_weights)
-    sampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=False)
+    #samples_weights = torch.tensor(sample_weights)
+    #sampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=True)
 
     batch_size = 16
 
-    dataloader = DataLoader(dataset_train, batch_size, num_workers=0,shuffle=False,sampler=sampler)
+    dataloader = DataLoader(dataset_train, batch_size, num_workers=0,shuffle=True)
     print("Length of the dataloader: ",len(dataloader))
     #fig, axs = plt.subplots(1, batch_size, figsize=(3,3))
     #print("length of the dataloader ",len(dataloader.dataset))
     #dataloader output 4 dimensional tensor - [batch, channel, height, width]. Matplotlib and other image processing libraries often requires [height, width, channel].
     for j, (image, target,name) in enumerate(dataloader):
         print("name ",name)
+        target = target.numpy()
         print("Target ",target)
-        if j==2:
-            break
+        print("Type of Target ",target.shape)
+        #df = pd.DataFrame(target,dtype=int,columns=[1,12,13,5])
 
-    #    for i in range(batch_size):
-    #        print("i ",i ,image[i].shape)
-    #        img =image[i] #/ 2 + 0.5
-            #your transpose should convert a now [channel, height, width] tensor to a [height, width, channel] one. To do this, use np.transpose(image.numpy(), (1, 2, 0))
-    #        img=np.transpose(img.numpy(), (1, 2, 0))
+        #print(df)
+        #df=df.groupby(df.columns.tolist()).size().reset_index().rename(columns={0:'records'})
+        #print(df)
+        #df_unique = df.groupby(level=0).first()
+        #if j==5:
+        #    break
+
+        #for i in range(batch_size):
+        #    print("i ",i ,image[i].shape)
+        #    img =image[i] / 2 + 0.5
+        #    #your transpose should convert a now [channel, height, width] tensor to a [height, width, channel] one. To do this, use np.transpose(image.numpy(), (1, 2, 0))
+        #    img=np.transpose(img.numpy(), (1, 2, 0))
             #print("Values ", target[i].numpy(), image[i].numpy().shape)
-    #        axs.imshow(img)
+        #    plt.imshow(img)
 
-    #    break
+        break
     #plt.show()
 
