@@ -183,8 +183,12 @@ def main(args):
 
         # Step2. load dataset and dataloader
         dataset_train, dataset_val = load_data(args.train_path, args.val_path)
+        sample_weights = dataset_train.sample_weights
+        samples_weights = torch.tensor(sample_weights)
+        weightedsampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=True)
 
-        train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
+        #train_loader = DataLoader(dataset_train, batch_size=args.batch_size,  shuffle=False,sampler=weightedsampler)
+        train_loader = DataLoader(dataset_train, batch_size=args.batch_size,  shuffle=True)
         val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
 
         logging.info('\n-----Initial Dataset Information-----')
@@ -272,13 +276,13 @@ def main(args):
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
         # Let's not do the learning rate scheduler now
-        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
 
         writer = SummaryWriter(args.ckp_dir)
         for epoch in range(args.epochs):
             # Step6. Train the epoch
             train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict)
-            lr_scheduler.step()
+            #lr_scheduler.step()
             # Step7. Validate after each epoch
             evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict,1)
             # Step8. Save the model after 10 epoch
