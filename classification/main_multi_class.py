@@ -18,6 +18,7 @@ import collections
 import logging
 import matplotlib.pyplot as plt
 from efficientnet_pytorch import EfficientNet
+import random
 
 
 # define a function to count the total number of trainable parameters
@@ -77,7 +78,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
 
     correct=0
     f1 =0
-    classes= ('Arable Land','Pastures','Perm Crop','Heterogenious Agricultural')
+    classes= ('Arable Land','Pastures','Perm Crop','Heterogeneous Agricultural')
     #classes_dict= {0:'Arable Land',1:'Pastures',2:'Perm Crop',3:'Heterogenious Agricultural'}
     class_correct = list(0. for i in range(len(classes)))
     class_total = list(0. for i in range(len(classes)))
@@ -89,6 +90,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
             image = image.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True)
             output = model(image)
+            #logging.info("Output : {}".format(output))
             loss += criterion(output, target).item()
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             pred = np.squeeze(pred, axis = 1)
@@ -138,7 +140,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
 
 #load the data as image and multiLabel
 def load_data(traindir, valdir):
-    transformation='none'
+
     train_transform = transforms.Compose([
             transforms.ToPILImage(),
             transforms.RandomHorizontalFlip(0.5),
@@ -150,11 +152,29 @@ def load_data(traindir, valdir):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
+    inception_train_transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Resize((299,299)),
+        transforms.RandomHorizontalFlip(0.5),
+        transforms.RandomVerticalFlip(0.5),
+        #transforms.RandomGrayscale(0.2),
+        transforms.RandomRotation(40),
+        transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0, hue=0),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+
     val_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    dataset_train = ImageFolder(root=traindir, transform=train_transform)
+
+    if args.model == 'inception':
+        dataset_train = ImageFolder(root=traindir, transform=inception_train_transform)
+    else:
+        dataset_train = ImageFolder(root=traindir, transform=train_transform)
+
     dataset_val = ImageFolder(root=valdir, transform=val_transform)
 
     return dataset_train, dataset_val
@@ -188,8 +208,8 @@ def main(args):
         weightedsampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=True)
 
         #train_loader = DataLoader(dataset_train, batch_size=args.batch_size,  shuffle=False,sampler=weightedsampler)
-        train_loader = DataLoader(dataset_train, batch_size=args.batch_size,  shuffle=True)
-        val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
+        train_loader = DataLoader(dataset_train, batch_size=args.batch_size,num_workers=0, shuffle=True,pin_memory=True)
+        val_loader = DataLoader(dataset_val, batch_size=args.batch_size,num_workers=0,shuffle=True,pin_memory=True)
 
         logging.info('\n-----Initial Dataset Information-----')
         logging.info('num images in train_dataset   : {}'.format(len(dataset_train)))
@@ -272,7 +292,7 @@ def main(args):
                 print("\t",name)
 
         # Step5. Adam optimizer and lr scheduler
-        #optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=0.4)
+        #optimizer = optim.Adam(model.parameters(), lr=args.lr)
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
         # Let's not do the learning rate scheduler now
@@ -281,7 +301,7 @@ def main(args):
         writer = SummaryWriter(args.ckp_dir)
         for epoch in range(args.epochs):
             # Step6. Train the epoch
-            train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict)
+            train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict,is_inception)
             #lr_scheduler.step()
             # Step7. Validate after each epoch
             evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict,1)
@@ -323,11 +343,11 @@ def main(args):
             #Resnet 50
             model = models.resnet50(pretrained=True)
             num_ftrs = model.fc.in_features
-            model.fc = nn.Linear(num_ftrs, args.num_classes)
-            #model.fc = nn.Sequential(
-            #    nn.Dropout(0.5),
-            #    nn.Linear(num_ftrs, args.num_classes)
-            #)
+            #model.fc = nn.Linear(num_ftrs, args.num_classes)
+            model.fc = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(num_ftrs, args.num_classes)
+            )
         elif args.model == 'resnet101':
             #Resnet 50
             model = models.resnet101(pretrained=True)
@@ -404,12 +424,21 @@ def parse_args():
     parser.add_argument('--test-path', help='test dataset path')
     parser.add_argument('--test-model',default='', help='path to latest checkpoint to run test on (default: none)')
     parser.add_argument('-t','--test', default=False, help = 'Set to true when running test')
-
+    parser.add_argument('--seed', default=0, help='seed value for deterministic model')
 
     args = parser.parse_args()
     return args
 
+def set_seed(seed=1234):
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 if __name__ == "__main__":
     args = parse_args()
+    set_seed(args.seed)
     main(args)
