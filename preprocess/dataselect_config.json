@@ -3,6 +3,6 @@
 "label_array": ["Rice fields" , "Non-irrigated arable land","Permanently irrigated land", "Agro-forestry areas" , "Land principally occupied by agriculture, with significant areas of natural vegetation" ,  "Complex cultivation patterns" , "Annual crops associated with permanent crops" ,"Pastures","Fruit trees and berry plantations", "Olive groves", "Vineyards" ],
 "category" : "Forest",
 "class_type":"category",
-"domainA":["06","07"],
+"domainA":["06","07" , "08"],
 "domainB":["01","02","12"]
 }
