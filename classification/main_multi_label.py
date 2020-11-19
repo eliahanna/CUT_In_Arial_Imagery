@@ -18,6 +18,7 @@ import collections
 import logging
 import matplotlib.pyplot as plt
 from efficientnet_pytorch import EfficientNet
+import random
 
 
 # define a function to count the total number of trainable parameters
@@ -340,9 +341,9 @@ def main(args):
         criterion = nn.BCEWithLogitsLoss().to(device)
 
 
-        for name,param in model.named_parameters():
-            if param.requires_grad == True:
-                print("\t",name)
+        #for name,param in model.named_parameters():
+        #    if param.requires_grad == True:
+        #        print("\t",name)
 
         # Step5. Adam optimizer and lr scheduler
         #optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=1e-5)
@@ -387,11 +388,11 @@ def main(args):
             #Resnet 50
             model = models.resnet50(pretrained=True)
             num_ftrs = model.fc.in_features
-            model.fc = nn.Linear(num_ftrs, args.num_classes)
-            #model.fc = nn.Sequential(
-            #    nn.Dropout(0.5),
-            #    nn.Linear(num_ftrs, args.num_classes)
-            #)
+            #model.fc = nn.Linear(num_ftrs, args.num_classes)
+            model.fc = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(num_ftrs, args.num_classes)
+            )
         elif args.model == 'resnet101':
             #Resnet 50
             model = models.resnet101(pretrained=True)
@@ -470,12 +471,22 @@ def parse_args():
     parser.add_argument('--test-model',default='', help='path to latest checkpoint to run test on (default: none)')
     parser.add_argument('-t','--test', default=False, help = 'Set to true when running test')
     parser.add_argument('--augmentation', default=False, help = 'Set to true if you want to do data augmentation')
+    parser.add_argument('--seed', default=0, help='seed value for deterministic model')
 
 
     args = parser.parse_args()
     return args
 
+def set_seed(seed=1234):
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 if __name__ == "__main__":
     args = parse_args()
+    set_seed(args.seed)
     main(args)
