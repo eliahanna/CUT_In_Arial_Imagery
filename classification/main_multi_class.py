@@ -416,15 +416,15 @@ def parse_args():
     parser.add_argument('--device', default='cpu', help='the device platform for train, cuda or cpu.')
     parser.add_argument('-b', '--batch-size', default=16, type=int, help='training batch size')
     parser.add_argument('--epochs', default=90, type=int, help='train epochs')
-    parser.add_argument('--lr', default=0.001, type=float, help='initial learning rate')
+    parser.add_argument('--lr', default=0.0001, type=float, help='initial learning rate')
 
-    parser.add_argument('--print-freq', default=20, type=int, help='print frequency')
+    parser.add_argument('--print-freq', default=200, type=int, help='print frequency')
     parser.add_argument('--ckp-dir', default='checkpoint', help='path to save checkpoint')
    	# Additional arguments
     parser.add_argument('--test-path', help='test dataset path')
     parser.add_argument('--test-model',default='', help='path to latest checkpoint to run test on (default: none)')
     parser.add_argument('-t','--test', default=False, help = 'Set to true when running test')
-    parser.add_argument('--seed', default=0, help='seed value for deterministic model')
+    #parser.add_argument('--seed', default=0, help='seed value for deterministic model')
 
     args = parser.parse_args()
     return args
@@ -440,5 +440,4 @@ def set_seed(seed=1234):
 
 if __name__ == "__main__":
     args = parse_args()
-    set_seed(args.seed)
     main(args)
