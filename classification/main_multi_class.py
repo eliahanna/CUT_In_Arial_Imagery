@@ -21,16 +21,12 @@ from efficientnet_pytorch import EfficientNet
 import random
 
 
-# define a function to count the total number of trainable parameters
-def count_parameters(model):
-    num_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    return num_parameters/1e6 # in terms of millions
-
 
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, print_freq, writer,logging,losses_dict,is_inception=False):
     model.train()
     epoch_loss = 0
     correct=0
+    total=0
     accuracy_score = 0
     for idx, (image, target,name) in enumerate(data_loader):
         # Move tensors to the configured device
@@ -53,19 +49,21 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
         optimizer.step()
 
         epoch_loss = epoch_loss + loss.item()
-        pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-        pred = np.squeeze(pred, axis = 1)
-        correct += pred.eq(target.view_as(pred)).sum().item()
+        #pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+        #pred = np.squeeze(pred, axis = 1)
+        _, pred = output.max(1)
+        total += target.size(0)
+        correct += pred.eq(target).sum().item()
+        #correct += pred.eq(target.view_as(pred)).sum().item()
         #logging.info("Count of Correct Prediction {}".format(correct))
         
         if idx % print_freq == 0:
             logging.info('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, idx * len(image), len(data_loader.dataset), 100. * idx / len(data_loader), loss.item()))
-            writer.add_scalar('Train/loss', loss.item(), len(data_loader) * epoch + idx)
 
-    epoch_loss /= len(data_loader.dataset)/data_loader.batch_size
+    epoch_loss = epoch_loss/len(data_loader)
     losses_dict['epoch_train_loss'].append(epoch_loss)
-    accuracy_score = correct / len(data_loader.dataset)
+    accuracy_score = correct / total
     losses_dict['training_accuracy'].append(round(accuracy_score,4))
     logging.info('epoch_train_loss is {} and Train accuracy: {}'.format(epoch_loss, round(accuracy_score,4)))
     #logging.info(epoch_loss)
@@ -75,11 +73,11 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, pri
 def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses_dict,validate=0):
     model.eval()
     loss = 0
-
+    total=0
     correct=0
     f1 =0
     classes= ('Arable Land','Pastures','Perm Crop','Heterogeneous Agricultural')
-    #classes_dict= {0:'Arable Land',1:'Pastures',2:'Perm Crop',3:'Heterogenious Agricultural'}
+    #classes = ('plane', 'car', 'bird', 'cat', 'deer','dog', 'frog', 'horse', 'ship', 'truck')
     class_correct = list(0. for i in range(len(classes)))
     class_total = list(0. for i in range(len(classes)))
 
@@ -92,18 +90,21 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
             output = model(image)
             #logging.info("Output : {}".format(output))
             loss += criterion(output, target).item()
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            pred = np.squeeze(pred, axis = 1)
-            correct += pred.eq(target.view_as(pred)).sum().item()
+            _, pred = output.max(1)
+            total += target.size(0)
+            correct += pred.eq(target).sum().item()
+            #pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            #pred = np.squeeze(pred, axis = 1)
+            #correct += pred.eq(target.view_as(pred)).sum().item()
 
 
             # Put everything in a dataframe for display
-            match = pred.eq(target.view_as(pred))
+            match = pred.eq(target)
             dicDf = {'Image': name,
              'Actual': target.int().to(torch.device("cpu")).numpy().tolist(),
              'Prediction': pred.to(torch.device("cpu")).numpy().tolist(),
              'Matching':match.to(torch.device("cpu")).numpy()
-            }
+                     }
             epochDf = pd.DataFrame(dicDf, columns = ['Image', 'Actual','Prediction','Matching'])
             checkDf = pd.concat([checkDf, epochDf], axis =0,ignore_index=True, sort=False)
 
@@ -117,7 +118,7 @@ def evaluate(epoch, model, criterion, data_loader, device, writer,logging,losses
             checkDf.to_csv(filePath)
         #print("Number of batches : ",len(data_loader) , " and also : ",data_loader.batch_size)
         loss /= len(data_loader)
-        accuracy_score=correct / len(data_loader.dataset)
+        accuracy_score=correct / total
 
         logging.info('\nTest set: Average loss: {:.4f}, Accuracy: {}\n'.format(
                     loss, round(accuracy_score,4)))
@@ -145,11 +146,13 @@ def load_data(traindir, valdir):
             transforms.ToPILImage(),
             transforms.RandomHorizontalFlip(0.5),
             transforms.RandomVerticalFlip(0.5),
+            transforms.RandomCrop(120, padding=4),
             #transforms.RandomGrayscale(0.2),
             transforms.RandomRotation(40),
             transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0, hue=0),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+            #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
     inception_train_transform = transforms.Compose([
@@ -162,12 +165,14 @@ def load_data(traindir, valdir):
         transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0, hue=0),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
     ])
 
 
     val_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     if args.model == 'inception':
@@ -181,7 +186,6 @@ def load_data(traindir, valdir):
 
 
 def main(args):
-    torch.backends.cudnn.benchmark = True
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -194,6 +198,8 @@ def main(args):
 
     #Step1. CPU or GPU
     device = torch.device('cuda' if args.device == 'cuda' else 'cpu')
+
+
     script_start_time = time.time() # tells the total run time of this script
     # making empty lists to collect all the losses
     losses_dict = collections.defaultdict(list)
@@ -203,13 +209,33 @@ def main(args):
 
         # Step2. load dataset and dataloader
         dataset_train, dataset_val = load_data(args.train_path, args.val_path)
-        sample_weights = dataset_train.sample_weights
-        samples_weights = torch.tensor(sample_weights)
-        weightedsampler = WeightedRandomSampler(samples_weights, len(samples_weights),replacement=True)
-
-        #train_loader = DataLoader(dataset_train, batch_size=args.batch_size,  shuffle=False,sampler=weightedsampler)
         train_loader = DataLoader(dataset_train, batch_size=args.batch_size,num_workers=0, shuffle=True,pin_memory=True)
-        val_loader = DataLoader(dataset_val, batch_size=args.batch_size,num_workers=0,shuffle=True,pin_memory=True)
+        val_loader = DataLoader(dataset_val, batch_size=args.batch_size,num_workers=0,shuffle=False,pin_memory=True)
+        #import torchvision
+        #transform_train = transforms.Compose([
+        #    transforms.RandomCrop(32, padding=4),
+        #    transforms.RandomHorizontalFlip(),
+        #    transforms.ToTensor(),
+        #    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        #])
+
+        #transform_test = transforms.Compose([
+        #    transforms.ToTensor(),
+        #    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        #])
+
+        #dataset_train = torchvision.datasets.CIFAR10(
+         #       root='./data', train=True, download=True, transform=transform_train)
+        #train_loader = torch.utils.data.DataLoader(
+        #    dataset_train, batch_size=128, shuffle=True, num_workers=2)
+
+        #dataset_val = torchvision.datasets.CIFAR10(
+         #   root='./data', train=False, download=True, transform=transform_test)
+        #val_loader = torch.utils.data.DataLoader(
+         #   dataset_val, batch_size=100, shuffle=False, num_workers=2)
+
+        #classes = ('plane', 'car', 'bird', 'cat', 'deer',
+        #                'dog', 'frog', 'horse', 'ship', 'truck')
 
         logging.info('\n-----Initial Dataset Information-----')
         logging.info('num images in train_dataset   : {}'.format(len(dataset_train)))
@@ -218,8 +244,6 @@ def main(args):
         logging.info('Size of validation dataloader      : {}'.format(len(val_loader)))
         logging.info('-------------------------------------')
 
-        a,b,c = dataset_train[0]
-        print('\nwe are working with \n Image name: {} and \nImages shape: {} and \nTarget shape: {} '.format(c, a.shape, b))
         is_inception=False
 
         # Step3. Instantiate the model
@@ -277,34 +301,33 @@ def main(args):
 
         #print(summary(model, input_size=(a.shape[0], a.shape[1], a.shape[2])))
         model.to(device)
+        if device == 'cuda':
+            model = torch.nn.DataParallel(model)
+            torch.backends.cudnn.benchmark = True
+
         if args.resume:
             model.load_state_dict(torch.load(args.resume, map_location=device))
 
-        print('\nwe have {} Million trainable parameters here in the {} model'.format(count_parameters(model), model.__class__.__name__))
 
         # Step4. Binary Croos Entropy loss for multi-label classification
 
         criterion = nn.CrossEntropyLoss().to(device)
 
 
-        for name,param in model.named_parameters():
-            if param.requires_grad == True:
-                print("\t",name)
-
         # Step5. Adam optimizer and lr scheduler
-        #optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+        #optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
         # Let's not do the learning rate scheduler now
-        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
 
         writer = SummaryWriter(args.ckp_dir)
         for epoch in range(args.epochs):
             # Step6. Train the epoch
             train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict,is_inception)
-            #lr_scheduler.step()
             # Step7. Validate after each epoch
             evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict,1)
+            scheduler.step()
             # Step8. Save the model after 10 epoch
             if epoch % 10 == 9:
                 torch.save(model.state_dict(), os.path.join(args.ckp_dir, "cls_epoch_{}.pth".format(epoch)))
