@@ -268,7 +268,7 @@ def main(args):
 
         train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=False,sampler=weightedsampler)
         #train_loader = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
-        val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
+        val_loader = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=False)
 
         logging.info('\n-----Initial Dataset Information-----')
         logging.info('num images in train_dataset   : {}'.format(len(dataset_train)))
@@ -348,18 +348,18 @@ def main(args):
         # Step5. Adam optimizer and lr scheduler
         #optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=1e-5)
         #optimizer = optim.RMSprop(model.parameters(), lr = args.lr, alpha = 0.9)
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
         # Let's not do the learning rate scheduler now
-        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
 
         writer = SummaryWriter(args.ckp_dir)
         for epoch in range(args.epochs):
             # Step6. Train the epoch
             train_one_epoch(model, criterion, optimizer, train_loader, device, epoch, args.print_freq, writer,logging,losses_dict,is_inception)
-            #lr_scheduler.step()
             # Step7. Validate after each epoch
             evaluate(epoch, model, criterion, val_loader, device, writer,logging,losses_dict,1)
+            scheduler.step()
             # Step8. Save the model after 10 epoch
             if epoch % 10 == 9:
                 torch.save(model.state_dict(), os.path.join(args.ckp_dir, "cls_epoch_{}.pth".format(epoch)))
