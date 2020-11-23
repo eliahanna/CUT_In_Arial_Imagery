@@ -239,7 +239,6 @@ def load_data(traindir, valdir,augmentation=False):
 
 
 def main(args):
-    torch.backends.cudnn.benchmark = True
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -330,6 +329,10 @@ def main(args):
 
         #logging.info(summary(model, input_size=(3, 299, 299)))
         model.to(device)
+        if device == 'cuda':
+            model = torch.nn.DataParallel(model)
+            torch.backends.cudnn.benchmark = True
+
         if args.resume:
             model.load_state_dict(torch.load(args.resume, map_location=device))
 
@@ -488,5 +491,4 @@ def set_seed(seed=1234):
 
 if __name__ == "__main__":
     args = parse_args()
-    set_seed(args.seed)
     main(args)
