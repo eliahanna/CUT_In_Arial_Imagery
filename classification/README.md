@@ -73,7 +73,7 @@ python3 main_multi_class.py --train-path ../preprocess/outputsf/model/CUT400/tra
                  --epochs 50 --lr 0.0001  \
                  --device cuda	 --print-freq 100
 
-### Example to run Training for multi-class
+### Example to run Test for multi-class
 python3 main_multi_class.py --test True --test-path ../preprocess/outputsf/model/validate \
                  --test-model vgg16_sf_fake_400/cls_epoch_49.pth \
                  --model vgg16 \
