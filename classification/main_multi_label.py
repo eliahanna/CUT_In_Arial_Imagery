@@ -455,13 +455,9 @@ def parse_args():
     parser.add_argument('--train-path', help='train dataset path')
     parser.add_argument('--val-path', help='validate dataset path')
     parser.add_argument('--model', default="vgg16", help='the classification model')
-    parser.add_argument('--pretrained', default=True, help='use the ImageNet pretrained model or not')
-
     parser.add_argument('--resume',default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
     parser.add_argument('--num-classes', default=3, type=int, help='num of classes')
-    parser.add_argument('--in-channels', default=3, type=int, help='input image channels')
-
     parser.add_argument('--device', default='cpu', help='the device platform for train, cuda or cpu.')
     parser.add_argument('-b', '--batch-size', default=16, type=int, help='training batch size')
     parser.add_argument('--epochs', default=90, type=int, help='train epochs')
