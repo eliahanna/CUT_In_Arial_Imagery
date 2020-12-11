@@ -8,6 +8,7 @@
 * [Meeting Notes](https://docs.google.com/document/d/1yrmghJ7MDKia_e4599bPVZS--dsykM7bCIAFgfwfaDw/edit?usp=sharing)
 * [Contrastive Learning for Unpaired Image-to-Image Translation](https://taesung.me/ContrastiveUnpairedTranslation/)
 * [CUT github repo](https://github.com/taesungp/contrastive-unpaired-translation)
+* [Website github repo](https://github.com/biolchen/MIDS_Capstone_website)
 * [A Cycle GAN Approach for Heterogeneous Domain Adaptation in Land Use Classification](https://arxiv.org/abs/2004.11245v1)
 * [bigearthnet](https://www.tensorflow.org/datasets/catalog/bigearthnet)
 * [Corine Land Cover Nomenclature Guidelines](https://land.copernicus.eu/user-corner/technical-library/corine-land-cover-nomenclature-guidelines/html)
